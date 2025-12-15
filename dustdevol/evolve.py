@@ -1,5 +1,7 @@
 from collections.abc import Callable
 import numpy as np
+from astropy.cosmology import Planck13, z_at_value
+from astropy.units import Quantity, Unit
 
 # define working precision
 fp = np.float64
@@ -8,6 +10,9 @@ fp = np.float64
 def fp_zeros(shape):
     return np.zeros(shape, dtype=fp)
 
+redshift_lookups = np.concatenate(([0], np.logspace(-3, 3, 100)))
+t_lookups = Planck13.age(redshift_lookups).value
+z_at_time = c
 
 def evolve_sfe(
     time_start: fp,
@@ -78,10 +83,13 @@ def evolve_sfe(
     sfr = fp_zeros(sfe)
     inflows = inflow_model(model_params, times)
 
+    imf_array = imf(np.logspace())
+
     results = fp_zeros(
         (
             len(times) + 1,
-            len(init_gas) + len(init_star) + len(init_metal) + len(init_dust) + 1,
+            len(init_gas) + len(init_star) +
+            len(init_metal) + len(init_dust) + 1,
         ),
     )
     results[:, 0] = times
@@ -217,6 +225,7 @@ def evolve_sfe(
             print("No dust remaining. Terminating early at %f." % t)
             return results
 
-        results[1 + i, 1:] = np.hstack(init_gas, init_star, init_metal, init_dust)
+        results[1 + i, 1:] = np.hstack(init_gas,
+                                       init_star, init_metal, init_dust)
 
     return results
