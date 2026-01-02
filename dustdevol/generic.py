@@ -7,15 +7,21 @@ from scipy import interpolate
 fp = np.float64
 
 
+# initialize an array of zeros with given shape, using wp
 def fp_zeros(shape):
     return np.zeros(shape, dtype=fp)
 
 
+# create a function which takes in time values and calculates
+# the redshift at that time, assuming cosmological parameters
+# from the Planck 2013 study
 redshift_lookups = np.flip(np.concatenate(([0], np.logspace(-3, 3, 511))))
 t_lookups = Planck13.age(redshift_lookups).value
 z_at_t = interpolate.make_interp_spline(t_lookups, redshift_lookups, k=4)
 
 
+# stand in for any of the gas/metal/dust evolution functions
+# which just returns zeros, turning off that aspect of the model
 def off(*args):
     gas = fp_zeros(len(args[-4]))
     metal = fp_zeros(len(args[-2]))
@@ -23,6 +29,10 @@ def off(*args):
     return gas, metal, dust
 
 
+# reads sfh from a file, interpolating using either a user specified
+# order, or defaulting to a cubic interpolation.
+# file should consist of a series of lines starting with time in yrs,
+# a space, and then sfr in Msol/yr
 def sfr_from_file(model_params, times):
     vals = np.loadtxt(model_params["sfr_file"], dtype=fp)
     vals *= [1e-9, 1e9]
@@ -40,6 +50,7 @@ def sfr_from_file(model_params, times):
         return interp(times)
 
 
+# stellar lifetime table according to INSERT
 S92 = np.array(
     (
         (0.8, 15.0, 26.0),
@@ -62,6 +73,7 @@ S92 = np.array(
 )
 
 
+# SN dust production table according to INSERT
 TF01 = np.array(
     (
         (8.5, 0),
@@ -149,10 +161,15 @@ for i in range(21):
     vdHG97_M92_oxy[i, 2] = vdHG97_M92_oxy_raw[i, 5] + vdHG97_M92_oxy_raw[i, 6]
     vdHG97_M92_oxy[i, 3] = vdHG97_M92_oxy_raw[i, 7] + vdHG97_M92_oxy_raw[i, 8]
 
+
+# metal yield table accoring to INSERT
+# TODO: instead of doing all that math in here, just put the output in here raw
 vdHG97_M92_yields = fp_zeros((21, 9))
 vdHG97_M92_yields[:, 0] = vdHG97_M92_metals_raw[:, 0]
 vdHG97_M92_yields[:, 1::2] = vdHG97_M92_metals
 vdHG97_M92_yields[:, 2::2] = vdHG97_M92_oxy
 
 
+# metallicity cutoffs for the previous yield table
+# Z < 0.0025 means use the first set, z < 0.006 use the second, etc.
 vdHG97_M92_cutoffs = np.array((0.0025, 0.006, 0.01, np.inf))

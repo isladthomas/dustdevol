@@ -18,6 +18,8 @@ def chab(m):
     return imf
 
 
+# This is what I get by directly copying the chab function and then
+# normalizing to 1 from 0.8 to 120
 def alt_chab(m):
     if m <= 1.0:
         imf = 0.158 * \
