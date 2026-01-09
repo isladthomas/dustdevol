@@ -462,5 +462,5 @@ def evolve_sfr(
 
         # if we are sane, store
         results[1 + i, 1:] = np.hstack((mgas, mstar, mmetal, mdust))
-
+        
     return results

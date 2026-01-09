@@ -17,7 +17,7 @@ def fp_zeros(shape):
 # from the Planck 2013 study
 redshift_lookups = np.flip(np.concatenate(([0], np.logspace(-3, 3, 511))))
 t_lookups = Planck13.age(redshift_lookups).value
-z_at_t = interpolate.make_interp_spline(t_lookups, redshift_lookups, k=4)
+z_at_t = interpolate.make_interp_spline(t_lookups, redshift_lookups, k=3)
 
 
 # stand in for any of the gas/metal/dust evolution functions
@@ -50,7 +50,7 @@ def sfr_from_file(model_params, times):
         return interp(times)
 
 
-# stellar lifetime table according to INSERT
+# stellar lifetime table according to Schaller et. al 1992
 S92 = np.array(
     (
         (0.8, 15.0, 26.0),
@@ -73,7 +73,7 @@ S92 = np.array(
 )
 
 
-# SN dust production table according to INSERT
+# SN dust production table according to Todini and Ferrara 2001
 TF01 = np.array(
     (
         (8.5, 0),
@@ -162,7 +162,8 @@ for i in range(21):
     vdHG97_M92_oxy[i, 3] = vdHG97_M92_oxy_raw[i, 7] + vdHG97_M92_oxy_raw[i, 8]
 
 
-# metal yield table accoring to INSERT
+# metal yield table accoring to van den Hoek and Groenewegen 1997 for < 9 Msol
+# and Maeder 1992 for >= 9 Msol
 # TODO: instead of doing all that math in here, just put the output in here raw
 vdHG97_M92_yields = fp_zeros((21, 9))
 vdHG97_M92_yields[:, 0] = vdHG97_M92_metals_raw[:, 0]

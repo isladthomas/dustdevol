@@ -1,5 +1,5 @@
 from dustdevol.generic import fp, fp_zeros
-from numpy import where, log10
+from numpy import where, log10, logspace, linspace, vectorize, diff
 
 
 def xSFR_inflow(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
@@ -301,7 +301,7 @@ def stellar_ejecta(
 
     # finish setting up the integral, done with 500 logarithmically
     # spaced steps across the mass range
-    steps = 500
+    steps = 65536
     count = 0
     m = m_min
     dlogm = 0
@@ -528,5 +528,273 @@ def fresh_dust(
             dust_yield_table[abs(dust_yield_table[:, 0] - m).argmin(), 1]
             / reduction_factor
         )
+    else:
+        dust_mass = 0
 
     return dust_mass
+
+
+def fast_ejecta_lin(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+    """
+    calculate the gas, metals, and dust emmitted from dying stars, given
+    a function for mass of stellar remnants as well as output tables for
+    metal and dust yields. In essence, convolves the past SFR with the IMF
+    and a yield function to find how much gas/metal/dust is beind shot out now
+    requires:
+        - \"dust_yields\": table where each row gives a mass in Msol, and the
+                           dust *created*, not recycled, when such a star dies
+        - \"metal_yields\": table where each row gives a mass in Msol, followed
+                            by several entries giving the metals created when
+                            such a star dies, ordered the same as init_metals,
+                            repeated for each metallicity level
+        - \"yield_table_z_cutoffs\": list giving the cutoff for each
+                                     metallicity level in the metal_yields table
+        - \"sn_dust_reduction\": factor which divides dust created in supernovae
+        - \"stellar_lifetimes\": table where each row gives, in order
+                                 the mass of a star in Msol, the lifetime
+                                 of such a star in Gyrs in a low metallicity
+                                 (Z < 0.008) environment, and the lifetime in
+                                 a high metallicity (Z >= 0.008) environment
+    NOTE: does modify model_params, storing an additional value with key
+    \"z_history\", which allows the function to access historical metallicities
+    """
+
+    # store all model params for easier passing to subroutines
+    dust_yield_table = model_params["dust_yields"]
+    metal_yield_table = model_params["metal_yields"]
+    metallicity_cutoffs = model_params["yield_table_z_cutoffs"]
+    sn_reduction = model_params["sn_dust_reduction"]
+    stellar_lifetimes = model_params["stellar_lifetimes"]
+
+    # grab everything precomputable, and precompute it if not
+    # specifically, the masses we sample, and the imfs, ejecta (m - rem)
+    # and the size of the window at each mass
+    try:
+        masses = model_params["ejecta_masses"]
+        ejecta = model_params["ejecta_vals"]
+        imf_vals = model_params["imf_values"]
+        d_masses = model_params["d_masses"]
+
+    except KeyError:
+
+        model_params["ejecta_masses"] = logspace(0.8, 120, 65537)
+
+        # get mass windows
+        masses = model_params["ejecta_masses"]
+        model_params["d_masses"] = diff(masses)
+        d_masses = model_params["d_masses"]
+
+        # switch "masses" to the midpoints, instead of left edges
+        model_params["ejecta_masses"] = masses[:-1] + (d_masses / 2)
+        masses = model_params["ejecta_masses"]
+
+        # calcualte imf and ejecta at midpoints
+        model_params["imf_values"] = vectorize(imf)(masses)
+        imf_vals = model_params["imf_values"]
+        remnants = vectorize(remnant_mass)(masses)
+        model_params["ejecta_vals"] = masses - remnants
+        ejecta = model_params["ejecta_vals"]
+
+    # determine if high or low metallicity lifetimes are to be used
+    if (mmetal[0] / mgas[0]) <= 0.008:
+        metallicity = "low"
+
+    else:
+        metallicity = "high"
+
+    lifetimes = vectorize(life_from_mass, excluded={1, 2})(
+        masses, stellar_lifetimes, metallicity
+    )
+
+    d_masses = where(times[i] > lifetimes, d_masses, 0)
+
+    # store the current metallicity for future use, or create that variable if
+    # needed
+    try:
+        model_params["z_history"][i, :] = mmetal / mgas[0]
+    except KeyError:
+        model_params["z_history"] = fp_zeros((len(times), len(mmetal)))
+        model_params["z_history"][i, :] = mmetal / mgas[0]
+
+    # define some helper functions which do 0-order interpolation for the
+    # historical sfr and metallicity
+    def z_near(td):
+        return model_params["z_history"][(abs(times - td)).argmin()]
+
+    def sfr_near(td):
+        return sfr[(abs(times - td)).argmin()]
+
+    # create arrays for historical metallicity and sfr
+    z_at_birth = fp_zeros((len(lifetimes), len(mmetal)))
+    sfr_vals = fp_zeros(len(lifetimes))
+    for i, t in enumerate(times[i] - lifetimes):
+        z_at_birth[i, :] = z_near(t)
+        sfr_vals[i] = sfr_near(t)
+
+    # calculate all our ejecta
+    ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum()
+
+    fresh_metal_ejecta = fp_zeros((len(lifetimes), len(mmetal)))
+    for i, mass in enumerate(masses):
+        fresh_metal_ejecta[i, :] = fresh_metals(
+            metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
+        )
+    old_metal_ejecta = ejecta[:, None] * z_at_birth
+    ejected_metal = (
+        (fresh_metal_ejecta + old_metal_ejecta)
+        * sfr_vals[:, None]
+        * imf_vals[:, None]
+        * d_masses[:, None]
+    ).sum()
+
+    fresh_dust_ejecta = vectorize(fresh_dust, excluded={0, 1, 2, 3, 5})(
+        dust_yield_table,
+        metal_yield_table,
+        metallicity_cutoffs,
+        sn_reduction,
+        masses,
+        mmetal / mgas[0],
+    )
+    old_dust_ejecta = ejecta * z_at_birth[:, 0] * where(masses <= 8, 0.15, 0)
+    ejected_dust = (
+        (fresh_dust_ejecta + old_dust_ejecta)
+        * sfr_vals
+        * imf_vals
+        * d_masses
+        * where(masses < 40, 1, 0)
+    ).sum()
+
+    return ejected_gas, ejected_metal, ejected_dust
+
+
+def fast_ejecta_log(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+    """
+    calculate the gas, metals, and dust emmitted from dying stars, given
+    a function for mass of stellar remnants as well as output tables for
+    metal and dust yields. In essence, convolves the past SFR with the IMF
+    and a yield function to find how much gas/metal/dust is beind shot out now
+    requires:
+        - \"dust_yields\": table where each row gives a mass in Msol, and the
+                           dust *created*, not recycled, when such a star dies
+        - \"metal_yields\": table where each row gives a mass in Msol, followed
+                            by several entries giving the metals created when
+                            such a star dies, ordered the same as init_metals,
+                            repeated for each metallicity level
+        - \"yield_table_z_cutoffs\": list giving the cutoff for each
+                                     metallicity level in the metal_yields table
+        - \"sn_dust_reduction\": factor which divides dust created in supernovae
+        - \"stellar_lifetimes\": table where each row gives, in order
+                                 the mass of a star in Msol, the lifetime
+                                 of such a star in Gyrs in a low metallicity
+                                 (Z < 0.008) environment, and the lifetime in
+                                 a high metallicity (Z >= 0.008) environment
+    NOTE: does modify model_params, storing an additional value with key
+    \"z_history\", which allows the function to access historical metallicities
+    """
+
+    # store all model params for easier passing to subroutines
+    dust_yield_table = model_params["dust_yields"]
+    metal_yield_table = model_params["metal_yields"]
+    metallicity_cutoffs = model_params["yield_table_z_cutoffs"]
+    sn_reduction = model_params["sn_dust_reduction"]
+    stellar_lifetimes = model_params["stellar_lifetimes"]
+
+    # grab everything precomputable, and precompute it if not
+    # specifically, the masses we sample, and the imfs, ejecta (m - rem)
+    # and the size of the window at each mass
+    try:
+        masses = model_params["ejecta_masses"]
+        ejecta = model_params["ejecta_vals"]
+        imf_vals = model_params["imf_values"]
+        d_masses = model_params["d_masses"]
+
+    except KeyError:
+
+        model_params["ejecta_masses"] = linspace(0.8, 120, 65537)
+
+        # get mass windows
+        masses = model_params["ejecta_masses"]
+        model_params["d_masses"] = diff(masses)
+        d_masses = model_params["d_masses"]
+
+        # switch "masses" to the midpoints, instead of left edges
+        model_params["ejecta_masses"] = masses[:-1] + (d_masses / 2)
+        masses = model_params["ejecta_masses"]
+
+        # calcualte imf and ejecta at midpoints
+        model_params["imf_values"] = vectorize(imf)(masses)
+        imf_vals = model_params["imf_values"]
+        remnants = vectorize(remnant_mass)(masses)
+        model_params["ejecta_vals"] = masses - remnants
+        ejecta = model_params["ejecta_vals"]
+
+    # determine if high or low metallicity lifetimes are to be used
+    if (mmetal[0] / mgas[0]) <= 0.008:
+        metallicity = "low"
+
+    else:
+        metallicity = "high"
+
+    lifetimes = vectorize(life_from_mass, excluded={1, 2})(
+        masses, stellar_lifetimes, metallicity
+    )
+
+    d_masses = where(times[i] > lifetimes, d_masses, 0)
+
+    # store the current metallicity for future use, or create that variable if
+    # needed
+    try:
+        model_params["z_history"][i, :] = mmetal / mgas[0]
+    except KeyError:
+        model_params["z_history"] = fp_zeros((len(times), len(mmetal)))
+        model_params["z_history"][i, :] = mmetal / mgas[0]
+
+    # define some helper functions which do 0-order interpolation for the
+    # historical sfr and metallicity
+    def z_near(td):
+        return model_params["z_history"][(abs(times - td)).argmin()]
+
+    def sfr_near(td):
+        return sfr[(abs(times - td)).argmin()]
+
+    # create arrays for historical metallicity and sfr
+    z_at_birth = fp_zeros((len(lifetimes), len(mmetal)))
+    sfr_vals = fp_zeros(len(lifetimes))
+    for i, t in enumerate(times[i] - lifetimes):
+        z_at_birth[i, :] = z_near(t)
+        sfr_vals[i] = sfr_near(t)
+
+    # calculate all our ejecta
+    ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum()
+
+    fresh_metal_ejecta = fp_zeros((len(lifetimes), len(mmetal)))
+    for i, mass in enumerate(masses):
+        fresh_metal_ejecta[i, :] = fresh_metals(
+            metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
+        )
+    old_metal_ejecta = ejecta[:, None] * z_at_birth
+    ejected_metal = (
+        (fresh_metal_ejecta + old_metal_ejecta)
+        * sfr_vals[:, None]
+        * imf_vals[:, None]
+        * d_masses[:, None]
+    ).sum()
+
+    fresh_dust_ejecta = vectorize(fresh_dust, excluded={0, 1, 2, 3, 5})(
+        dust_yield_table,
+        metal_yield_table,
+        metallicity_cutoffs,
+        sn_reduction,
+        masses,
+        mmetal / mgas[0],
+    )
+    old_dust_ejecta = ejecta * z_at_birth[:, 0] * where(masses <= 8, 0.15, 0)
+    ejected_dust = (
+        (fresh_dust_ejecta + old_dust_ejecta)
+        * sfr_vals
+        * imf_vals
+        * d_masses
+        * where(masses < 40, 1, 0)
+    ).sum()
+
+    return ejected_gas, ejected_metal, ejected_dust
