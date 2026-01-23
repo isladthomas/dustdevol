@@ -18,7 +18,7 @@ times = zeros(1)
 
 for i in range(1):
     start = timer()
-    results = evolve_sfr(
+    results_slow = evolve_sfr(
         g.fp(0),
         g.fp(20),
         arange(0.05, 20, 0.05, dtype=g.fp),
@@ -54,11 +54,9 @@ for i in range(1):
 print("Standard Ejecta Mean: {} seconds".format(times.mean()))
 print("Standard Ejecta Std : {} seconds".format(times.std()))
 
-plt.plot(results[:, 0], results[:, 1])
-
 for i in range(1):
     start = timer()
-    results = evolve_sfr(
+    results_lin = evolve_sfr(
         g.fp(0),
         g.fp(20),
         arange(0.05, 20, 0.05, dtype=g.fp),
@@ -94,11 +92,9 @@ for i in range(1):
 print("Fast Ejecta Mean: {} seconds".format(times.mean()))
 print("Fast Ejecta Std : {} seconds".format(times.std()))
 
-plt.plot(results[:, 0], results[:, 1])
-
 for i in range(1):
     start = timer()
-    results = evolve_sfr(
+    results_log = evolve_sfr(
         g.fp(0),
         g.fp(20),
         arange(0.05, 20, 0.05, dtype=g.fp),
@@ -134,8 +130,42 @@ for i in range(1):
 print("Fast Ejecta Mean: {} seconds".format(times.mean()))
 print("Fast Ejecta Std : {} seconds".format(times.std()))
 
-plt.plot(results[:, 0], results[:, 1])
-
+plt.figure(1)
+plt.plot(results_slow[:,0], results_slow[:,1])
+plt.plot(results_lin[:,0], results_lin[:,1])
+plt.plot(results_log[:,0], results_log[:,1])
 plt.yscale("log")
 plt.legend(["standard", "fast lin", "fast log"])
-plt.savefig("guh.png")
+plt.savefig("gas.png")
+
+plt.figure(2)
+plt.plot(results_slow[:,0], results_slow[:,2])
+plt.plot(results_lin[:,0], results_lin[:,2])
+plt.plot(results_log[:,0], results_log[:,2])
+plt.yscale("log")
+plt.legend(["standard", "fast lin", "fast log"])
+plt.savefig("stars.png")
+
+plt.figure(3)
+plt.plot(results_slow[:,0], results_slow[:,3])
+plt.plot(results_lin[:,0], results_lin[:,3])
+plt.plot(results_log[:,0], results_log[:,3])
+plt.yscale("log")
+plt.legend(["standard", "fast lin", "fast log"])
+plt.savefig("metals.png")
+
+plt.figure(4)
+plt.plot(results_slow[:,0], results_slow[:,4])
+plt.plot(results_lin[:,0], results_lin[:,4])
+plt.plot(results_log[:,0], results_log[:,4])
+plt.yscale("log")
+plt.legend(["standard", "fast lin", "fast log"])
+plt.savefig("oxygen.png")
+
+plt.figure(5)
+plt.plot(results_slow[:,0], results_slow[:,5])
+plt.plot(results_lin[:,0], results_lin[:,5])
+plt.plot(results_log[:,0], results_log[:,5])
+plt.yscale("log")
+plt.legend(["standard", "fast lin", "fast log"])
+plt.savefig("dust.png")
