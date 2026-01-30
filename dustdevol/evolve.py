@@ -66,7 +66,7 @@ def evolve_sfe(
     """
 
     # trim times array to exclude points before the start or after the end
-    times = times[(times < time_end) & (times > time_start)]
+    times = np.hstack(((fp(0)), times[(times < time_end) & (times > time_start)]))
 
     # calculate sfes, and reserve space for the sfrs
     sfe = sfe_model(model_params, times)
@@ -77,12 +77,12 @@ def evolve_sfe(
     # stars, and dust, and put in what you already have (times and init values)
     results = fp_zeros(
         (
-            len(times) + 1,
+            len(times),
             len(init_gas) + len(init_star) +
             len(init_metal) + len(init_dust) + 1,
         ),
     )
-    results[1:, 0] = times
+    results[1:, 0] = times[:-1]
     results[0, 1:] = np.hstack((init_gas, init_star, init_metal, init_dust))
 
     # initialize the variables to actually be evolved during the sim loop
@@ -120,7 +120,6 @@ def evolve_sfe(
     dmdust_destruction = fp_zeros(len(init_dust))
 
     # initialize time and begin the loop
-    t = 0
 
     for i in range(0, len(times) - 1):
 
@@ -302,7 +301,8 @@ def evolve_sfr(
     """
 
     # trim times array to exclude points before the start or after the end
-    times = times[(times < time_end) & (times > time_start)]
+    # and also include t = 0
+    times = np.hstack(((fp(0)), times[(times < time_end) & (times > time_start)]))
 
     # calculate sfes, and reserve space for the sfrs
     sfr = sfr_model(model_params, times)
@@ -312,12 +312,12 @@ def evolve_sfr(
     # stars, and dust, and put in what you already have (times and init values)
     results = fp_zeros(
         (
-            len(times) + 1,
+            len(times),
             len(init_gas) + len(init_star) +
             len(init_metal) + len(init_dust) + 1,
         ),
     )
-    results[1:, 0] = times
+    results[1:, 0] = times[:-1]
     results[0, 1:] = np.hstack((init_gas, init_star, init_metal, init_dust))
 
     # initialize the variables to actually be evolved during the sim loop
@@ -355,7 +355,6 @@ def evolve_sfr(
     dmdust_destruction = fp_zeros(len(init_dust))
 
     # initialize time and begin the loop
-    t = 0
 
     for i in range(0, len(times) - 1):
 
@@ -462,5 +461,5 @@ def evolve_sfr(
 
         # if we are sane, store
         results[1 + i, 1:] = np.hstack((mgas, mstar, mmetal, mdust))
-        
+
     return results

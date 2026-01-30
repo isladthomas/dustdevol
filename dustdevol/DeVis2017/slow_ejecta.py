@@ -69,7 +69,7 @@ def stellar_ejecta(
 
     # finish setting up the integral, done with 500 logarithmically
     # spaced steps across the mass range
-    steps = 16
+    steps = 512
     count = 0
     m = m_min
     dlogm = 0
@@ -136,8 +136,6 @@ def stellar_ejecta(
 
         # set the left edge of the new step
         m = 10 ** (logm_new)
-
-    breakpoint()
 
     return ejected_gas, ejected_metal, ejected_dust
 

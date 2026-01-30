@@ -125,13 +125,13 @@ def xSFR_outflow(
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
     try:
-        metal_outflow = gas_outflow * model_params["outflow_metal"]
+        metal_outflow = (mmetal / mgas[0]) * gas_outflow * model_params["outflow_metal"]
     except KeyError:
         model_params["outflow_metal"] = fp_zeros(len(mmetal))
         metal_outflow = fp_zeros(len(mmetal))
 
     try:
-        dust_outflow = gas_outflow * model_params["outflow_dust"]
+        dust_outflow = (mdust / mgas[0]) * gas_outflow * model_params["outflow_dust"]
     except KeyError:
         model_params["outflow_dust"] = fp_zeros(len(mdust))
         dust_outflow = fp_zeros(len(mdust))

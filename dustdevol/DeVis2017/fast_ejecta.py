@@ -1,4 +1,4 @@
-from numpy import linspace, logspace, where, diff, vectorize
+from numpy import linspace, logspace, where, diff, vectorize, log10
 from dustdevol.generic import fp_zeros
 
 
@@ -44,9 +44,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, m, metallicity):
 
     for j, cutoff in enumerate(metallicity_cutoffs):
         if metallicity[0] <= cutoff:
-            mass = yields[j * stepsize: (j + 1) * stepsize]
-
-    return mass
+            return yields[j * stepsize: (j + 1) * stepsize]
 
 
 def fresh_dust(
@@ -128,7 +126,7 @@ def fast_ejecta_log(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(0.8, 120, 17)
+        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -176,18 +174,20 @@ def fast_ejecta_log(
     # create arrays for historical metallicity and sfr
     z_at_birth = fp_zeros((len(lifetimes), len(mmetal)))
     sfr_vals = fp_zeros(len(lifetimes))
-    for i, t in enumerate(times[i] - lifetimes):
-        z_at_birth[i, :] = z_near(t)
-        sfr_vals[i] = sfr_near(t)
+    for j, t in enumerate(times[i] - lifetimes):
+        if t >= 0:
+            z_at_birth[j, :] = z_near(t)
+            sfr_vals[j] = sfr_near(t)
 
     # calculate all our ejecta
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
     fresh_metal_ejecta = fp_zeros((len(lifetimes), len(mmetal)))
-    for i, mass in enumerate(masses):
-        fresh_metal_ejecta[i, :] = fresh_metals(
-            metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
-        )
+    for j, mass in enumerate(masses):
+        if d_masses[j] != 0:
+            fresh_metal_ejecta[j, :] = fresh_metals(
+                metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
+            )
     old_metal_ejecta = ejecta[:, None] * z_at_birth
     ejected_metal = (
         (fresh_metal_ejecta + old_metal_ejecta)
@@ -212,8 +212,6 @@ def fast_ejecta_log(
         * d_masses
         * where(masses < 40, 1, 0)
     ).sum(axis=0)
-
-    breakpoint()
 
     return ejected_gas, ejected_metal, ejected_dust
 
@@ -263,7 +261,7 @@ def fast_ejecta_lin(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = linspace(0.8, 120, 17)
+        model_params["ejecta_masses"] = linspace(0.8, 120, 513)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -311,18 +309,20 @@ def fast_ejecta_lin(
     # create arrays for historical metallicity and sfr
     z_at_birth = fp_zeros((len(lifetimes), len(mmetal)))
     sfr_vals = fp_zeros(len(lifetimes))
-    for i, t in enumerate(times[i] - lifetimes):
-        z_at_birth[i, :] = z_near(t)
-        sfr_vals[i] = sfr_near(t)
+    for j, t in enumerate(times[i] - lifetimes):
+        if t >= 0:
+            z_at_birth[j, :] = z_near(t)
+            sfr_vals[j] = sfr_near(t)
 
     # calculate all our ejecta
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
     fresh_metal_ejecta = fp_zeros((len(lifetimes), len(mmetal)))
-    for i, mass in enumerate(masses):
-        fresh_metal_ejecta[i, :] = fresh_metals(
-            metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
-        )
+    for j, mass in enumerate(masses):
+        if d_masses[j] != 0:
+            fresh_metal_ejecta[j, :] = fresh_metals(
+                metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
+            )
     old_metal_ejecta = ejecta[:, None] * z_at_birth
     ejected_metal = (
         (fresh_metal_ejecta + old_metal_ejecta)
@@ -347,7 +347,5 @@ def fast_ejecta_lin(
         * d_masses
         * where(masses < 40, 1, 0)
     ).sum(axis=0)
-
-    breakpoint()
 
     return ejected_gas, ejected_metal, ejected_dust
