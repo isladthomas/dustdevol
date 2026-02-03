@@ -82,7 +82,7 @@ def evolve_sfe(
             len(init_metal) + len(init_dust) + 1,
         ),
     )
-    results[1:, 0] = times[:-1]
+    results[:, 0] = times
     results[0, 1:] = np.hstack((init_gas, init_star, init_metal, init_dust))
 
     # initialize the variables to actually be evolved during the sim loop
@@ -317,7 +317,7 @@ def evolve_sfr(
             len(init_metal) + len(init_dust) + 1,
         ),
     )
-    results[1:, 0] = times[:-1]
+    results[:, 0] = times
     results[0, 1:] = np.hstack((init_gas, init_star, init_metal, init_dust))
 
     # initialize the variables to actually be evolved during the sim loop

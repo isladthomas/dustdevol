@@ -1,5 +1,5 @@
 from dustdevol.evolve import evolve_sfr
-from dustdevol.imf import chab
+from dustdevol.imf import chab, bad_chab
 import dustdevol.generic as g
 from dustdevol.DeVis2017 import (
     xSFR_inflow,
@@ -15,6 +15,7 @@ from numpy import arange, zeros
 import matplotlib.pyplot as plt
 from timeit import default_timer as timer
 from scipy import interpolate
+from copy import deepcopy
 
 inits_original = [
     {
@@ -131,6 +132,8 @@ inits_original = [
     },
 ]
 
+standard_results = {}
+
 for i, item in enumerate(inits_original):
     
     start = timer()
@@ -143,7 +146,7 @@ for i, item in enumerate(inits_original):
     end = timer()
     print("Model " + item["name"] + " finished w/ og code in " + str(end - start))
 
-    params = {
+    standard_results[item["name"]] = {
         "time": all_results[:, 0],
         "mgas": all_results[:, 1],
         "mstars": all_results[:, 2],
@@ -153,25 +156,25 @@ for i, item in enumerate(inits_original):
     }
 
     plt.figure(5*i)
-    plt.plot(params["time"], params["mgas"])
+    plt.plot(standard_results[item["name"]]["time"], standard_results[item["name"]]["mgas"])
     
     plt.figure(5*i + 1)
-    plt.plot(params["time"], params["mstars"])
+    plt.plot(standard_results[item["name"]]["time"], standard_results[item["name"]]["mstars"])
 
     plt.figure(5*i + 2)
-    plt.plot(params["time"], params["metalmass"])
+    plt.plot(standard_results[item["name"]]["time"], standard_results[item["name"]]["metalmass"])
 
     plt.figure(5*i + 3)
-    plt.plot(params["time"], params["oxygenmass"])
+    plt.plot(standard_results[item["name"]]["time"], standard_results[item["name"]]["oxygenmass"])
 
     plt.figure(5*i + 4)
-    plt.plot(params["time"], params["dustmass"])
+    plt.plot(standard_results[item["name"]]["time"], standard_results[item["name"]]["dustmass"])
 
-inits_log = [
+inits_good = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[0]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -201,7 +204,7 @@ inits_log = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[1]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -231,7 +234,7 @@ inits_log = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[2]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -263,7 +266,7 @@ inits_log = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[3]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -295,7 +298,7 @@ inits_log = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[4]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -327,7 +330,7 @@ inits_log = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[5]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -359,7 +362,7 @@ inits_log = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": params["time"],
+        "times": standard_results[inits_original[6]["name"]]["time"],
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -390,42 +393,185 @@ inits_log = [
     },
 ]
 
-for i, item in enumerate(inits_log):
+inits_bad = deepcopy(inits_good)
+
+for item in inits_bad:
+    item["imf"] = bad_chab
+
+good_results = {}
+bad_results = {}
+
+for i, item in enumerate(zip(inits_good, inits_bad)):
+
+    model_name = inits_original[i]["name"]
     
     start = timer()
 
-    results = evolve_sfr(**item)
+    good_results[model_name] = evolve_sfr(**item[0])
 
     end = timer()
 
-    print("Model " + inits_original[i]["name"] + " finished w/ log code in " + str(end - start))
+    print("Model " + model_name + " finished w/ new chab in " + str(end - start))
+
+    start = timer()
+
+    bad_results[model_name] = evolve_sfr(**item[1])
+
+    end = timer()
+
+    print("Model " + model_name + " finished w/ old chab in " + str(end - start))
 
     plt.figure(5*i)
-    plt.plot(results[:,0], results[:,1])
+    plt.plot(good_results[model_name][:,0], good_results[model_name][:,1])
+    plt.plot(bad_results[model_name][:,0], bad_results[model_name][:,1])
+    plt.suptitle(model_name)
+    plt.title("Gas")
+    plt.ylabel("Gas Mass (Msol)")
+    plt.xlabel("Time (Gyr)")
     plt.yscale("log")
-    plt.legend(["original", "new"])
-    plt.savefig(inits_original[i]["name"] + "_gas.png")
+    plt.legend(["Old Code", "New Code, Good Chab", "New Code, Bad Chab"])
+    plt.savefig(model_name + "_gas.png")
+
+    plt.clf()
+
+    plt.plot(good_results[model_name][1:,0],
+            (good_results[model_name][1:,1] -
+             standard_results[model_name]["mgas"]) / 
+             standard_results[model_name]["mgas"])
+    plt.plot(bad_results[model_name][1:,0],
+            (bad_results[model_name][1:,1] -
+             standard_results[model_name]["mgas"]) / 
+             standard_results[model_name]["mgas"])
+    plt.suptitle(model_name)
+    plt.title("Gas Error Relative to 2017 Code")
+    plt.ylabel("Percent Error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylim([-1,1])
+    plt.legend(["Good Chab", "Bad Chab"])
+    plt.savefig(model_name + "_gas_error.png")
+
+    plt.close(5*i)
 
     plt.figure(5*i + 1)
-    plt.plot(results[:,0], results[:,2])
+    plt.plot(good_results[model_name][1:,0], good_results[model_name][1:,2])
+    plt.plot(bad_results[model_name][1:,0], bad_results[model_name][1:,2])
+    plt.suptitle(model_name)
+    plt.title("Stars")
+    plt.ylabel("Stellar Mass (Msol)")
+    plt.xlabel("Time (Gyr)")
     plt.yscale("log")
-    plt.legend(["original", "new"])
-    plt.savefig(inits_original[i]["name"] + "_stars.png")
+    plt.legend(["Old Code, Bad Chab", "New Code, Good Chab", "New Code, Bad Chab"])
+    plt.savefig(model_name + "_stars.png")
+
+    plt.clf()
+
+    plt.plot(good_results[model_name][1:,0],
+            (good_results[model_name][1:,2] -
+             standard_results[model_name]["mstars"]) / 
+             standard_results[model_name]["mstars"])
+    plt.plot(bad_results[model_name][1:,0],
+            (bad_results[model_name][1:,2] -
+             standard_results[model_name]["mstars"]) / 
+             standard_results[model_name]["mstars"])
+    plt.suptitle(model_name)
+    plt.title("Stars Error Relative to 2017 Code")
+    plt.ylabel("Percent Error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylim([-1,1])
+    plt.legend(["Good Chab", "Bad Chab"])
+    plt.savefig(model_name + "_stars_error.png")
+
+    plt.close(5*i + 1)
 
     plt.figure(5*i + 2)
-    plt.plot(results[:,0], results[:,3])
+    plt.plot(good_results[model_name][1:,0], good_results[model_name][1:,3])
+    plt.plot(bad_results[model_name][1:,0], bad_results[model_name][1:,3])
+    plt.suptitle(model_name)
+    plt.title("Metals")
+    plt.ylabel("Metal Mass (Msol)")
+    plt.xlabel("Time (Gyr)")
     plt.yscale("log")
-    plt.legend(["original", "new"])
-    plt.savefig(inits_original[i]["name"] + "_metals.png")
+    plt.legend(["Old Code, Bad Chab", "New Code, Good Chab", "New Code, Bad Chab"])
+    plt.savefig(model_name + "_metals.png")
+
+    plt.clf()
+
+    plt.plot(good_results[model_name][1:,0],
+            (good_results[model_name][1:,3] -
+             standard_results[model_name]["metalmass"]) / 
+             standard_results[model_name]["metalmass"])
+    plt.plot(bad_results[model_name][1:,0],
+            (bad_results[model_name][1:,3] -
+             standard_results[model_name]["metalmass"]) / 
+             standard_results[model_name]["metalmass"])
+    plt.suptitle(model_name)
+    plt.title("Metals Error Relative to 2017 Code")
+    plt.ylabel("Percent Error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylim([-1,1])
+    plt.legend(["Good Chab", "Bad Chab"])
+    plt.savefig(model_name + "_metals_error.png")
+
+    plt.close(5*i + 2)
     
     plt.figure(5*i + 3)
-    plt.plot(results[:,0], results[:,4])
+    plt.plot(good_results[model_name][1:,0], good_results[model_name][1:,4])
+    plt.plot(bad_results[model_name][1:,0], bad_results[model_name][1:,4])
+    plt.suptitle(model_name)
+    plt.title("Oxygen")
+    plt.ylabel("Oxygen Mass (Msol)")
+    plt.xlabel("Time (Gyr)")
     plt.yscale("log")
-    plt.legend(["original", "new"])
-    plt.savefig(inits_original[i]["name"] + "_oxygen.png")
+    plt.legend(["Old Code, Bad Chab", "New Code, Good Chab", "New Code, Bad Chab"])
+    plt.savefig(model_name + "_oxygen.png")
+
+    plt.clf()
+
+    plt.plot(good_results[model_name][1:,0],
+            (good_results[model_name][1:,4] -
+             standard_results[model_name]["oxygenmass"]) / 
+             standard_results[model_name]["oxygenmass"])
+    plt.plot(bad_results[model_name][1:,0],
+            (bad_results[model_name][1:,4] -
+             standard_results[model_name]["oxygenmass"]) / 
+             standard_results[model_name]["oxygenmass"])
+    plt.suptitle(model_name)
+    plt.title("Oxygen Error Relative to 2017 Code")
+    plt.ylabel("Percent Error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylim([-1,1])
+    plt.legend(["Good Chab", "Bad Chab"])
+    plt.savefig(model_name + "_oxygen_error.png")
+
+    plt.close(5*i + 3)
 
     plt.figure(5*i + 4)
-    plt.plot(results[:,0], results[:,5])
+    plt.plot(good_results[model_name][1:,0], good_results[model_name][1:,5])
+    plt.plot(bad_results[model_name][1:,0], bad_results[model_name][1:,5])
+    plt.suptitle(model_name)
+    plt.title("Dust")
+    plt.ylabel("Dust Mass (Msol)")
+    plt.xlabel("Time (Gyr)")
     plt.yscale("log")
-    plt.legend(["original", "new"])
-    plt.savefig(inits_original[i]["name"] + "_dust.png")
+    plt.legend(["Old Code, Bad Chab", "New Code, Good Chab", "New Code, Bad Chab"])
+    plt.savefig(model_name + "_dust.png")
+
+    plt.clf()
+
+    plt.plot(good_results[model_name][1:,0],
+            (good_results[model_name][1:,5] -
+             standard_results[model_name]["dustmass"]) / 
+             standard_results[model_name]["dustmass"])
+    plt.plot(bad_results[model_name][1:,0],
+            (bad_results[model_name][1:,5] -
+             standard_results[model_name]["dustmass"]) / 
+             standard_results[model_name]["dustmass"])
+    plt.suptitle(model_name)
+    plt.title("Dust Error Relative to 2017 Code")
+    plt.ylabel("Percent Error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylim([-1,1])
+    plt.legend(["Good Chab", "Bad Chab"])
+    plt.savefig(model_name + "_dust_error.png")
+
+    plt.close(5*i + 4)

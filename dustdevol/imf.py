@@ -21,7 +21,7 @@ def normalize_imf(imf, lower_m, upper_m):
 # though I think something's wrong, because units
 # are diff too. Original Chab is number density / Msolar
 # while this has units of 1 / Msolar^2
-def chab(m):
+def bad_chab(m):
     if m <= 1.0:
         imf = np.exp(-1.0 * (np.log10(m) + 1.1023729)
                      * (np.log10(m) + 1.1023729))
@@ -40,12 +40,12 @@ def interp_chab(lower, upper, n, k):
 
 
 # This is what I get by directly copying the chab function from Rowlands 2014
-# and then normalizing to 1 from 0.1 to 100
-def alt_chab(m):
+# and then normalizing to 1 from 0.1 to 120
+def chab(m):
     if m <= 1.0:
         imf = 0.158 * \
             np.exp(-((np.log10(m) - np.log10(0.079)) ** 2) / (2 * 0.69**2))
     else:
-        imf = 0.044 * (m ** (-1.3))
+        imf = 0.0443 * (m ** (-1.3))
     imf = imf / (m * np.log(10))
-    return imf / 0.08039084139276075
+    return imf / 0.0815731452799614

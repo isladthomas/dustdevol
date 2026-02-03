@@ -91,8 +91,8 @@ def stellar_ejecta(
         # of this step.
         count += 1
         logm_new = log10(m) + dlogm
-        dm = 10 ** (logm_new) - m
-        mmid = 10 ** ((logm_new + log10(m)) / 2)
+        dm = 10.0 ** (logm_new) - m
+        mmid = 10.0 ** ((logm_new + log10(m)) / 2.0)
 
         # calculate lifetime based on midpoint of this step,
         # and use that to find the time when such a star was born

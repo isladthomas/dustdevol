@@ -14,7 +14,7 @@ def supernova_rate(sfr, imf, times, i, stellar_lifetimes):
 
     # find the least massive star that could have been born and died
     # during the sim so far, clamped at 8 Msol (cutoff for SN)
-    m = mass_from_life(times[i], stellar_lifetimes, "high")
+    m = mass_from_life(times[i], stellar_lifetimes, "low")
     m = max(8, m)
 
     # integrate over imf between 8 and 40 msol, to find number of supernovae
