@@ -11,7 +11,9 @@ from dustdevol.DeVis2017 import (
     fast_ejecta_log,
 )
 from numpy import arange, zeros
+from timeit import default_timer as timer
 
+start = timer()
 results_log = evolve_sfr(
     g.fp(0),
     g.fp(20),
@@ -42,3 +44,6 @@ results_log = evolve_sfr(
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
 )
+end = timer()
+
+print(end - start)

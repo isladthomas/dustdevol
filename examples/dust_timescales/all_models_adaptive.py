@@ -1,27 +1,44 @@
-from dustdevol.evolve import evolve_sfr
-from dustdevol.imf import chab
-import dustdevol.generic as g
-from dustdevol.DeVis2017 import (
+from dustdevol.adaptive.evolve import evolve_2o
+from dustdevol.adaptive.imf import chab
+import dustdevol.adaptive.generic as g
+from dustdevol.adaptive.DeVis2017 import (
     xSFR_inflow,
     xSFR_outflow,
     dust_destruction,
-    fast_ejecta_log,
+    fast_ejecta,
 )
 from numpy import arange, maximum, minimum, column_stack, inf
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
 
-def Mattson_gg(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+def Mattson_gg(
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
+):
+
     time_gg = Mattson_gt(
-        model_params["grain_growth_epsilon"], mgas, sfr[i], mmetal[0], mdust
+        model_params["grain_growth_epsilon"], mgas, sfr, mmetal[0], mdust
     )
 
     try:
-        model_params["gg_timescale"][i] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
+        model_params["gg_timescale"][t] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
     except KeyError:
-        model_params["gg_timescale"] = g.fp_zeros(len(times))
-        model_params["gg_timescale"][i] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
+        model_params["gg_timescale"] = {}
+        model_params["gg_timescale"][t] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
 
     mdust_gg = mdust * (1.0 - (mdust / mmetal[0])) * time_gg**-1
     if any(mdust_gg != mdust_gg):
@@ -37,19 +54,34 @@ def Mattson_gt(e, mgas, sfr, mmetal, mdust):
 
 
 def bad_DeVis_gg(
-    model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
 ):
+
     time_gg = bad_DeVis_gt(
-        model_params["grain_growth_epsilon"], mgas, sfr[i], mmetal[0], mdust
+        model_params["grain_growth_epsilon"], mgas, sfr, mmetal[0], mdust
     )
 
     try:
-        model_params["gg_timescale"][i] = (time_gg / (
+        model_params["gg_timescale"][t] = (time_gg / (
             (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
         ))[0]
     except KeyError:
-        model_params["gg_timescale"] = g.fp_zeros(len(times))
-        model_params["gg_timescale"][i] = (time_gg / (
+        model_params["gg_timescale"] = {}
+        model_params["gg_timescale"][t] = (time_gg / (
             (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
         ))[0]
 
@@ -72,18 +104,35 @@ def bad_DeVis_gt(e, mgas, sfr, mmetal, mdust):
     return t_grow
 
 
-def DeVis_gg(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+def DeVis_gg(
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
+):
+
     time_gg = DeVis_gt(
-        model_params["grain_growth_epsilon"], mgas, sfr[i], mmetal[0], mdust
+        model_params["grain_growth_epsilon"], mgas, sfr, mmetal[0], mdust
     )
 
     try:
-        model_params["gg_timescale"][i] = (time_gg / (
+        model_params["gg_timescale"][t] = (time_gg / (
             (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
         ))[0]
     except KeyError:
-        model_params["gg_timescale"] = g.fp_zeros(len(times))
-        model_params["gg_timescale"][i] = (time_gg / (
+        model_params["gg_timescale"] = {}
+        model_params["gg_timescale"][t] = (time_gg / (
             (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
         ))[0]
 
@@ -106,11 +155,28 @@ def DeVis_gt(e, mgas, sfr, mmetal, mdust):
     return t_grow
 
 
-def BEDE_gg(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+def BEDE_gg(
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
+):
+
     diffuse_time_gg = diffuse_BEDE_gt(
         model_params["grain_growth_epsilon"] * (5.59 / 3820),
         mgas,
-        sfr[i],
+        sfr,
         mmetal[0],
         mdust,
         model_params["available_metals"],
@@ -124,7 +190,7 @@ def BEDE_gg(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdu
     cloud_time_gg = cloud_BEDE_gt(
         model_params["grain_growth_epsilon"],
         mgas,
-        sfr[i],
+        sfr,
         mmetal[0],
         mdust,
         minimum(1.0, 2.45 * model_params["available_metals"]),
@@ -137,13 +203,13 @@ def BEDE_gg(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdu
     mdust_gg = max(diffuse_mdust_gg + cloud_mdust_gg, 0)
 
     try:
-        model_params["gg_timescale"][i] = ((
+        model_params["gg_timescale"][t] = ((
             ((1 - model_params["cold_fraction"]) / diffuse_time_gg)
             + (model_params["cold_fraction"] / cloud_time_gg)
         ) ** (-1))[0]
     except KeyError:
-        model_params["gg_timescale"] = g.fp_zeros(len(times))
-        model_params["gg_timescale"][i] = ((
+        model_params["gg_timescale"] = {}
+        model_params["gg_timescale"][t] = ((
             ((1 - model_params["cold_fraction"]) / diffuse_time_gg)
             + (model_params["cold_fraction"] / cloud_time_gg)
         ) ** (-1))[0]
@@ -155,9 +221,6 @@ def diffuse_BEDE_gt(e, mgas, sfr, mmetal, mdust, available):
     depletion = maximum(0, 1 - (mdust / (mmetal * available)))
     t_grow = (0.0134 * mgas) / (e * mmetal * depletion)
 
-    if t_grow == inf:
-        print(sfr, e, mmetal, depletion)
-
     return t_grow
 
 
@@ -168,18 +231,35 @@ def cloud_BEDE_gt(e, mgas, sfr, mmetal, mdust, available):
     return t_grow
 
 
-def Asano_gg(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+def Asano_gg(
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
+):
+
     time_gg = Asano_gt(
-        model_params["grain_growth_epsilon"], mgas, sfr[i], mmetal[0], mdust
+        model_params["grain_growth_epsilon"], mgas, sfr, mmetal[0], mdust
     )
 
     try:
-        model_params["gg_timescale"][i] = (time_gg / (
+        model_params["gg_timescale"][t] = (time_gg / (
             (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
         ))[0]
     except KeyError:
-        model_params["gg_timescale"] = g.fp_zeros(len(times))
-        model_params["gg_timescale"][i] = (time_gg / (
+        model_params["gg_timescale"] = {}
+        model_params["gg_timescale"][t] = (time_gg / (
             (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
         ))[0]
 
@@ -205,7 +285,6 @@ inits_Mattson = [
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -213,7 +292,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -231,11 +310,12 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -243,7 +323,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -261,11 +341,12 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -273,7 +354,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -293,11 +374,12 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -305,7 +387,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -325,11 +407,12 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -337,7 +420,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -357,11 +440,12 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -369,7 +453,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -389,11 +473,12 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
     {
         "time_start": 0,
         "time_end": 20,
-        "times": arange(0.05, 20, 0.05, dtype=g.fp),
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -401,7 +486,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta_log,
+        "ejecta_model": fast_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -421,6 +506,8 @@ inits_Mattson = [
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
+        "absolute_tolerance": 1,
+        "relative_tolerance": 1e-3,
     },
 ]
 
@@ -452,9 +539,10 @@ legend = ["Mattson", "bad_DeVis", "DeVis", "BEDE", "Asano"]
 
 for title, models in zip(titles[3:], inits[3:]):
 
-    for model in models:
-        results = evolve_sfr(**model)
-        plt.plot(results[:, 0], model["model_params"]["gg_timescale"])
+    for i, model in enumerate(models):
+        print("Working on Model {} with {} gg".format(title, legend[i]))
+        results = evolve_2o(**model)
+        plt.plot(results["times"], [model["model_params"]["gg_timescale"][t] for t in results["times"]])
 
     plt.suptitle("Model " + title)
     plt.title("Dust Growth Timescale")
@@ -462,5 +550,5 @@ for title, models in zip(titles[3:], inits[3:]):
     plt.xlabel("Time (Gyr)")
     plt.yscale("log")
     plt.legend(legend)
-    plt.savefig("Model_" + title + "_gg.png")
+    plt.savefig("Model_" + title + "_gg_adaptive.png")
     plt.clf()

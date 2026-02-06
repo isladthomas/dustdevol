@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from timeit import default_timer as timer
 from scipy import interpolate
 
-n_trials = 50
+n_trials = 10
 
 times = zeros(n_trials)
 

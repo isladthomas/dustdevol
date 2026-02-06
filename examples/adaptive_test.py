@@ -60,7 +60,7 @@ start = timer()
 results_slow = e.evolve_sfr(
     g2.fp(0),
     g2.fp(20),
-    np.append(np.linspace(0.001, 0.05, 150, endpoint=False), np.arange(0.05, 20, 0.05)),
+    np.append(np.linspace(0.001, 0.05, 1000, endpoint=False), np.arange(0.05, 20, 0.05)),
     g2.sfr_from_file,
     i.chab,
     D.xSFR_inflow,
@@ -126,4 +126,15 @@ plt.plot(results["times"], results["dust_masses"])
 plt.yscale("log")
 plt.legend(["Original Code", "Adaptive Code"])
 plt.savefig("dust_adaptive.png")
+plt.clf()
+
+end = 0.1
+to_plot = results["times"] <= end
+
+plt.plot(results["times"][to_plot], np.diff(results["times"])[to_plot[:-1]])
+plt.xlim(0, end)
+plt.yscale("log")
+plt.xticks(np.arange(0, end, 0.0028))
+plt.grid()
+plt.savefig("timesteps.png")
 plt.clf()
