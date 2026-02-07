@@ -7,6 +7,7 @@ from dustdevol.adaptive.DeVis2017 import (
     grain_growth,
     dust_destruction,
     fast_ejecta,
+    Gauss_Kronrod_ejecta
 )
 import dustdevol.evolve as e
 import dustdevol.generic as g2
@@ -54,8 +55,47 @@ time = end - start
 print("Model I finished in {} seconds".format(time))
 print("Only took {} steps!".format(len(results["times"])))
 print("(out of {} attempted steps...)".format(results["cache"]["attempted_steps"]))
-print("Smallest step was {} seconds".format(np.diff(results["times"]).min())) 
+print("Smallest step was {} Gyr".format(np.diff(results["times"]).min())) 
 
+start = timer()
+results_fast = evolve_2o(
+    g.fp(0),
+    g.fp(20),
+    g.sfr_from_file,
+    chab,
+    xSFR_inflow,
+    xSFR_outflow,
+    g.off,
+    grain_growth,
+    dust_destruction,
+    Gauss_Kronrod_ejecta,
+    [4e10],
+    [0],
+    [0, 0],
+    [0],
+    {
+        "sfr_file": "Milkyway_2017.sfh",
+        "sn_dust_reduction": 1,
+        "sn_destruction": 0,
+        "inflow_xSFR": 0,
+        "outflow_xSFR": 0,
+        "cold_fraction": 0.5,
+        "grain_growth_epsilon": 0,
+        "stellar_lifetimes": g.S92,
+        "dust_yields": g.TF01,
+        "metal_yields": g.vdHG97_M92_yields,
+        "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
+    },
+    1,
+    1e-3,
+)
+end = timer()
+time = end - start
+
+print("Model I finished in {} seconds".format(time))
+print("Only took {} steps!".format(len(results["times"])))
+print("(out of {} attempted steps...)".format(results["cache"]["attempted_steps"]))
+print("Smallest step was {} Gyr".format(np.diff(results["times"]).min())) 
 start = timer()
 results_slow = e.evolve_sfr(
     g2.fp(0),
@@ -95,36 +135,41 @@ print("This took {} steps.".format(len(results_slow[:, 0])))
 
 plt.plot(results_slow[:, 0], results_slow[:, 1])
 plt.plot(results["times"], results["gas_masses"])
+plt.plot(results_fast["times"], results_fast["gas_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("gas_adaptive.png")
 plt.clf()
 
 plt.plot(results_slow[:, 0], results_slow[:, 2])
 plt.plot(results["times"], results["star_masses"])
+plt.plot(results_fast["times"], results_fast["star_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("stars_adaptive.png")
 plt.clf()
 
 plt.plot(results_slow[:, 0], results_slow[:, 3])
 plt.plot(results["times"], results["metal_masses"][:, 0])
+plt.plot(results_fast["times"], results_fast["metal_masses"][:, 0])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("metals_adaptive.png")
 plt.clf()
 
 plt.plot(results_slow[:, 0], results_slow[:, 4])
 plt.plot(results["times"], results["metal_masses"][:, 1])
+plt.plot(results_fast["times"], results_fast["metal_masses"][:, 1])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("oxygen_adaptive.png")
 plt.clf()
 
 plt.plot(results_slow[:, 0], results_slow[:, 5])
 plt.plot(results["times"], results["dust_masses"])
+plt.plot(results_fast["times"], results_fast["dust_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("dust_adaptive.png")
 plt.clf()
 

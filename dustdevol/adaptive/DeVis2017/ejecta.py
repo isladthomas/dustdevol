@@ -1,4 +1,16 @@
-from numpy import array, logspace, where, diff, vectorize, log10, searchsorted, clip
+from numpy import (
+    array,
+    logspace,
+    where,
+    diff,
+    vectorize,
+    log10,
+    searchsorted,
+    clip,
+    hstack,
+    maximum,
+    sqrt,
+)
 from dustdevol.adaptive.generic import fp_zeros
 
 
@@ -188,7 +200,6 @@ def fast_ejecta(
     return ejected_gas, ejected_metal, ejected_dust
 
 
-"""
 def Gauss_Kronrod_ejecta(
     model_params,
     sfr,
@@ -207,7 +218,6 @@ def Gauss_Kronrod_ejecta(
     cache,
 ):
     """
-"""
     calculate the gas, metals, and dust emmitted from dying stars, given
     a function for mass of stellar remnants as well as output tables for
     metal and dust yields. In essence, convolves the past SFR with the IMF
@@ -230,7 +240,6 @@ def Gauss_Kronrod_ejecta(
     Uses Gauss-Kronrod integration to (ideally) lower the workload and also
     give an error estimate. If the error is too high, subdivides interval.
     """
-"""
 
     # store all model params for easier passing to subroutines
     dust_yield_table = model_params["dust_yields"]
@@ -252,6 +261,7 @@ def Gauss_Kronrod_ejecta(
     except KeyError:
 
         cache["ejecta_masses"] = ((sample_points_pre + 1) / 2) * (119.2) + 0.8
+        cache["ejecta_subdivisions"] = 1
         masses = cache["ejecta_masses"]
         remnants = remnant_mass(masses)
         cache["ejecta_vals"] = masses - remnants
@@ -271,108 +281,170 @@ def Gauss_Kronrod_ejecta(
     else:
         metallicity = "high"
 
-    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
+    while True:
 
-    d_masses = where(t > lifetimes, d_masses, 0)
+        lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
 
-    # create arrays for historical metallicity and sfr
-    z_at_birth = fp_zeros((len(lifetimes), len(mmetal)))
-    sfr_vals = fp_zeros(len(lifetimes))
-    for j, t in enumerate(t - lifetimes):
-        if t >= 0:
-            z_at_birth[j, :] = metal_hist(t) / gas_hist(t)
-            sfr_vals[j] = sfr_hist(t)
+        imf_vals = where(t > lifetimes, imf_vals, 0)
 
-    # calculate all our ejecta
-    ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
+        # create arrays for historical metallicity and sfr
+        z_at_birth = metal_hist(t - lifetimes) / gas_hist(t - lifetimes)
+        sfr_vals = sfr_hist(t - lifetimes)
 
-    fresh_metal_ejecta = fp_zeros((len(lifetimes), len(mmetal)))
-    for j, mass in enumerate(masses):
-        if d_masses[j] != 0:
-            fresh_metal_ejecta[j, :] = fresh_metals(
-                metal_yield_table, metallicity_cutoffs, mass, mmetal / mgas[0]
+        # calculate all our ejecta
+        ejected_gas_k = (ejecta * sfr_vals * imf_vals *
+                         kronrod_weights).sum(axis=0)
+        ejected_gas_g = (ejecta * sfr_vals * imf_vals *
+                         gauss_weights).sum(axis=0)
+
+        fresh_metal_ejecta = fresh_metals(
+            metal_yield_table, metallicity_cutoffs, masses, mmetal / mgas[0]
+        )
+        old_metal_ejecta = ejecta[:, None] * z_at_birth
+        ejected_metal_k = (
+            (fresh_metal_ejecta + old_metal_ejecta)
+            * sfr_vals[:, None]
+            * imf_vals[:, None]
+            * kronrod_weights[:, None]
+        ).sum(axis=0)
+        ejected_metal_g = (
+            (fresh_metal_ejecta + old_metal_ejecta)
+            * sfr_vals[:, None]
+            * imf_vals[:, None]
+            * gauss_weights[:, None]
+        ).sum(axis=0)
+
+        fresh_dust_ejecta = fresh_dust(
+            dust_yield_table,
+            (fresh_metal_ejecta + old_metal_ejecta)[:, 0],
+            sn_reduction,
+            masses,
+        )
+        ejected_dust_k = (
+            fresh_dust_ejecta * sfr_vals * imf_vals * kronrod_weights
+        ).sum(axis=0)
+        ejected_dust_g = (fresh_dust_ejecta * sfr_vals * imf_vals * gauss_weights).sum(
+            axis=0
+        )
+
+        err_gas = abs(ejected_gas_k - ejected_gas_g)
+        err_metal = abs(ejected_metal_k - ejected_metal_g)
+        err_dust = abs(ejected_dust_k - ejected_dust_g)
+
+        err = hstack((err_gas, err_metal, err_dust)) / (
+            1e-2
+            * maximum(
+                hstack((ejected_gas_k, ejected_metal_k, ejected_dust_k)),
+                hstack((ejected_gas_g, ejected_metal_g, ejected_dust_g)),
             )
-    old_metal_ejecta = ejecta[:, None] * z_at_birth
-    ejected_metal = (
-        (fresh_metal_ejecta + old_metal_ejecta)
-        * sfr_vals[:, None]
-        * imf_vals[:, None]
-        * d_masses[:, None]
-    ).sum(axis=0)
+        )
 
-    fresh_dust_ejecta = fresh_dust(
-        dust_yield_table,
-        metal_yield_table,
-        metallicity_cutoffs,
-        sn_reduction,
-        masses,
-        mmetal / mgas[0],
-    )
-    old_dust_ejecta = ejecta * z_at_birth[:, 0] * where(masses <= 8, 0.15, 0)
-    ejected_dust = (
-        (fresh_dust_ejecta + old_dust_ejecta)
-        * sfr_vals
-        * imf_vals
-        * d_masses
-        * where(masses < 40, 1, 0)
-    ).sum(axis=0)
+        err = sqrt((err**2).mean())
 
-    return ejected_gas, ejected_metal, ejected_dust
+        if err <= 1 or err != err:
+            try:
+                cache["integral_accuracy"][t] = cache["ejecta_subdivisions"]
+            except KeyError:
+                cache["integral_accuracy"] = {}
+                cache["integral_accuracy"][t] = cache["ejecta_subdivisions"]
+
+            return ejected_gas_k, ejected_metal_k, ejected_dust_k
+        else:
+
+            cache["ejecta_subdivisions"] *= 2
+            ints = cache["ejecta_subdivisions"]
+
+            mesh = array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
+
+            cache["ejecta_masses"] = []
+            cache["gauss_weights"] = []
+            cache["kronrod_weights"] = []
+
+            for i in range(0, ints):
+                cache["ejecta_masses"].extend(
+                    ((sample_points_pre + 1) / 2) *
+                    (mesh[i + 1] - mesh[i]) + mesh[i]
+                )
+                cache["gauss_weights"].extend(
+                    gauss_weights_pre * (mesh[i + 1] - mesh[i]) / 2
+                )
+                cache["kronrod_weights"].extend(
+                    kronrod_weights_pre * (mesh[i + 1] - mesh[i]) / 2
+                )
+
+            cache["ejecta_masses"] = array(cache["ejecta_masses"])
+            cache["gauss_weights"] = array(cache["gauss_weights"])
+            cache["kronrod_weights"] = array(cache["kronrod_weights"])
+
+            masses = cache["ejecta_masses"]
+            remnants = remnant_mass(masses)
+            cache["ejecta_vals"] = masses - remnants
+            cache["imf_values"] = array([imf(xi) for xi in masses])
+
+            ejecta = cache["ejecta_vals"]
+            imf_vals = cache["imf_values"]
+            gauss_weights = cache["gauss_weights"]
+            kronrod_weights = cache["kronrod_weights"]
 
 
 # Sample points and weights for 15-point Gauss-Kronrod integration.
 # Based on integrating on [-1,1], needs to be rescaled to new bounds
-sample_points_pre = [
-    0.991455371120813,
-    0.949107912342759,
-    0.864864423359769,
-    0.741531185599394,
-    0.586087235467691,
-    0.405845151377397,
-    0.207784955007898,
-    0.000000000000000,
-    -0.207784955007898,
-    -0.405845151377397,
-    -0.586087235467691,
-    -0.741531185599394,
-    -0.864864423359769,
-    -0.949107912342759,
-    -0.991455371120813,
-]
+sample_points_pre = array(
+    [
+        0.991455371120813,
+        0.949107912342759,
+        0.864864423359769,
+        0.741531185599394,
+        0.586087235467691,
+        0.405845151377397,
+        0.207784955007898,
+        0.000000000000000,
+        -0.207784955007898,
+        -0.405845151377397,
+        -0.586087235467691,
+        -0.741531185599394,
+        -0.864864423359769,
+        -0.949107912342759,
+        -0.991455371120813,
+    ]
+)
 
-gauss_weights_pre = [
-    0,
-    0.129484966168870,
-    0,
-    0.279705391489277,
-    0,
-    0.381830050505119,
-    0,
-    0.417959183673469,
-    0,
-    0.381830050505119,
-    0,
-    0.279705391489277,
-    0,
-    0.129484966168870,
-    0,
-]
+gauss_weights_pre = array(
+    [
+        0,
+        0.129484966168870,
+        0,
+        0.279705391489277,
+        0,
+        0.381830050505119,
+        0,
+        0.417959183673469,
+        0,
+        0.381830050505119,
+        0,
+        0.279705391489277,
+        0,
+        0.129484966168870,
+        0,
+    ]
+)
 
-kronrod_weights_pre = [
-    0.022935322010529,
-    0.063092092629979,
-    0.104790010322250,
-    0.129484966168870,
-    0.169004726639267,
-    0.190350578064785,
-    0.204432940075298,
-    0.209482141084728,
-    0.204432940075298,
-    0.190350578064785,
-    0.169004726639267,
-    0.129484966168870,
-    0.104790010322250,
-    0.063092092629979,
-    0.022935322010529,
-]
-"""
+kronrod_weights_pre = array(
+    [
+        0.022935322010529,
+        0.063092092629979,
+        0.104790010322250,
+        0.129484966168870,
+        0.169004726639267,
+        0.190350578064785,
+        0.204432940075298,
+        0.209482141084728,
+        0.204432940075298,
+        0.190350578064785,
+        0.169004726639267,
+        0.129484966168870,
+        0.104790010322250,
+        0.063092092629979,
+        0.022935322010529,
+    ]
+)
