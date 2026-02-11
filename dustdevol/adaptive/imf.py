@@ -42,10 +42,12 @@ def interp_chab(lower, upper, n, k):
 # This is what I get by directly copying the chab function from Rowlands 2014
 # and then normalizing to 1 from 0.1 to 120
 def chab(m):
-    if m <= 1.0:
-        imf = 0.158 * \
-            np.exp(-((np.log10(m) - np.log10(0.079)) ** 2) / (2 * 0.69**2))
-    else:
-        imf = 0.0443 * (m ** (-1.3))
+
+    imf = np.where(
+        m <= 1.0,
+        0.158 * np.exp(-((np.log10(m) - np.log10(0.079))
+                       ** 2) / (2 * 0.69**2)),
+        0.0443 * (m ** (-1.3)),
+    )
     imf = imf / (m * np.log(10))
     return imf / 0.0815731452799614

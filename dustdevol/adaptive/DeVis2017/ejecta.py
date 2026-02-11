@@ -148,7 +148,7 @@ def fast_ejecta(
         masses = model_params["ejecta_masses"]
 
         # calcualte imf and ejecta at midpoints
-        model_params["imf_values"] = vectorize(imf)(masses)
+        model_params["imf_values"] = imf(masses)
         imf_vals = model_params["imf_values"]
         remnants = remnant_mass(masses)
         model_params["ejecta_vals"] = masses - remnants
@@ -260,7 +260,7 @@ def Gauss_Kronrod_ejecta(
         masses = cache["ejecta_masses"]
         remnants = remnant_mass(masses)
         cache["ejecta_vals"] = masses - remnants
-        cache["imf_values"] = array([imf(xi) for xi in masses])
+        cache["imf_values"] = imf(masses)
         cache["gauss_weights"] = gauss_weights_pre * 59.6
         cache["kronrod_weights"] = kronrod_weights_pre * 59.6
 
@@ -328,7 +328,7 @@ def Gauss_Kronrod_ejecta(
 
         err = hstack((err_gas, err_metal, err_dust)) / (
             1
-            + 1e-2
+            + 1e-3
             * maximum(
                 hstack((ejected_gas_k, ejected_metal_k, ejected_dust_k)),
                 hstack((ejected_gas_g, ejected_metal_g, ejected_dust_g)),
@@ -375,7 +375,7 @@ def Gauss_Kronrod_ejecta(
             masses = cache["ejecta_masses"]
             remnants = remnant_mass(masses)
             cache["ejecta_vals"] = masses - remnants
-            cache["imf_values"] = array([imf(xi) for xi in masses])
+            cache["imf_values"] = imf(masses)
 
             ejecta = cache["ejecta_vals"]
             imf_vals = cache["imf_values"]

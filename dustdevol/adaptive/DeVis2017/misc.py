@@ -67,7 +67,7 @@ def fast_supernova_rate(imf, sfr_hist, t, stellar_lifetimes, metallicity_float, 
         masses = logspace(log10(8), log10(40), 257)
         d_masses = diff(masses)
         masses = masses[:-1] + (d_masses / 2)
-        imf_vals = vectorize(imf)(masses)
+        imf_vals = imf(masses)
 
         cache["sn_masses"] = masses
         cache["sn_imf_values"] = imf_vals
