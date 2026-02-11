@@ -11,27 +11,22 @@ from numpy import (
     maximum,
     sqrt,
 )
-from dustdevol.adaptive.generic import fp_zeros
 
 
-def life_from_mass_vec(m, stellar_lifetimes, metallicity):
+def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
     """
     helper function which uses 0-order interpolation to find the lifetime
     in Gyr given a mass in Msol
     """
 
-    lifetimes = fp_zeros(len(m))
+    masses_half = stellar_lifetimes[:-1, 0] / 2 + stellar_lifetimes[1:, 0] / 2
+    eff_indices = searchsorted(masses_half, masses)
+    eff_indices = clip(eff_indices, 0, len(stellar_lifetimes[:, 0]) - 1)
 
-    for i, mass in enumerate(m):
-        arg = (abs(stellar_lifetimes[:, 0] - mass)).argmin()
-
-        if metallicity == "high":
-            lifetimes[i] = stellar_lifetimes[arg, 2]
-
-        else:
-            lifetimes[i] = stellar_lifetimes[arg, 1]
-
-    return lifetimes
+    if metallicity == "high":
+        return stellar_lifetimes[eff_indices, 2]
+    else:
+        return stellar_lifetimes[eff_indices, 1]
 
 
 def remnant_mass(m):
@@ -332,7 +327,8 @@ def Gauss_Kronrod_ejecta(
         err_dust = abs(ejected_dust_k - ejected_dust_g)
 
         err = hstack((err_gas, err_metal, err_dust)) / (
-            1e-2
+            1
+            + 5e-2
             * maximum(
                 hstack((ejected_gas_k, ejected_metal_k, ejected_dust_k)),
                 hstack((ejected_gas_g, ejected_metal_g, ejected_dust_g)),

@@ -71,6 +71,9 @@ temp.*
 Archive*
 *.gzip
 *.tar
+*.npy
+*.npz
+*.eps
 
 # Python modules
 validate_dict.py

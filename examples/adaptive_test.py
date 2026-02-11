@@ -6,8 +6,8 @@ from dustdevol.adaptive.DeVis2017 import (
     xSFR_outflow,
     grain_growth,
     dust_destruction,
+    fast_dust_destruction,
     fast_ejecta,
-    Gauss_Kronrod_ejecta
 )
 import dustdevol.evolve as e
 import dustdevol.generic as g2
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 start = timer()
 results = evolve_2o(
     g.fp(0),
-    g.fp(20),
+    g.fp(13.79),
     g.sfr_from_file,
     chab,
     xSFR_inflow,
@@ -54,21 +54,22 @@ time = end - start
 
 print("Model I finished in {} seconds".format(time))
 print("Only took {} steps!".format(len(results["times"])))
-print("(out of {} attempted steps...)".format(results["cache"]["attempted_steps"]))
-print("Smallest step was {} Gyr".format(np.diff(results["times"]).min())) 
+print("(out of {} attempted steps...)".format(
+    results["cache"]["attempted_steps"]))
+print("Smallest step was {} Gyr".format(np.diff(results["times"]).min()))
 
 start = timer()
 results_fast = evolve_2o(
     g.fp(0),
-    g.fp(20),
+    g.fp(13.79),
     g.sfr_from_file,
     chab,
     xSFR_inflow,
     xSFR_outflow,
     g.off,
     grain_growth,
-    dust_destruction,
-    Gauss_Kronrod_ejecta,
+    fast_dust_destruction,
+    fast_ejecta,
     [4e10],
     [0],
     [0, 0],
@@ -93,14 +94,18 @@ end = timer()
 time = end - start
 
 print("Model I finished in {} seconds".format(time))
-print("Only took {} steps!".format(len(results["times"])))
-print("(out of {} attempted steps...)".format(results["cache"]["attempted_steps"]))
-print("Smallest step was {} Gyr".format(np.diff(results["times"]).min())) 
+print("Only took {} steps!".format(len(results_fast["times"])))
+print("(out of {} attempted steps...)".format(
+    results_fast["cache"]["attempted_steps"]))
+print("Smallest step was {} Gyr".format(np.diff(results_fast["times"]).min()))
 start = timer()
 results_slow = e.evolve_sfr(
     g2.fp(0),
-    g2.fp(20),
-    np.append(np.linspace(0.001, 0.05, 1000, endpoint=False), np.arange(0.05, 20, 0.05)),
+    g2.fp(13.79),
+    np.append(
+        np.linspace(0.001, 0.05, 1000, endpoint=False), np.arange(
+            0.05, 20, 0.05)
+    ),
     g2.sfr_from_file,
     i.chab,
     D.xSFR_inflow,
@@ -137,7 +142,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 1])
 plt.plot(results["times"], results["gas_masses"])
 plt.plot(results_fast["times"], results_fast["gas_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
 plt.savefig("gas_adaptive.png")
 plt.clf()
 
@@ -145,7 +150,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 2])
 plt.plot(results["times"], results["star_masses"])
 plt.plot(results_fast["times"], results_fast["star_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
 plt.savefig("stars_adaptive.png")
 plt.clf()
 
@@ -153,7 +158,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 3])
 plt.plot(results["times"], results["metal_masses"][:, 0])
 plt.plot(results_fast["times"], results_fast["metal_masses"][:, 0])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
 plt.savefig("metals_adaptive.png")
 plt.clf()
 
@@ -161,7 +166,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 4])
 plt.plot(results["times"], results["metal_masses"][:, 1])
 plt.plot(results_fast["times"], results_fast["metal_masses"][:, 1])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
 plt.savefig("oxygen_adaptive.png")
 plt.clf()
 
@@ -169,10 +174,11 @@ plt.plot(results_slow[:, 0], results_slow[:, 5])
 plt.plot(results["times"], results["dust_masses"])
 plt.plot(results_fast["times"], results_fast["dust_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
 plt.savefig("dust_adaptive.png")
 plt.clf()
 
+"""
 end = 0.1
 to_plot = results["times"] <= end
 
@@ -183,3 +189,13 @@ plt.xticks(np.arange(0, end, 0.0028))
 plt.grid()
 plt.savefig("timesteps.png")
 plt.clf()
+
+plt.plot(
+    results_fast["times"],
+    [results_fast["cache"]["integral_accuracy"].get(
+        t) for t in results_fast["times"]],
+)
+plt.grid()
+plt.savefig("integral accuracy.png")
+plt.clf()
+"""

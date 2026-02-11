@@ -1,7 +1,7 @@
-from collections.abc import Callable
 import numpy as np
 from dustdevol.adaptive.generic import fp, fp_zeros, z_at_t
 from scipy.interpolate import CubicHermiteSpline, CubicSpline
+import sys
 
 
 def evolve_2o(
@@ -261,7 +261,8 @@ def evolve_2o(
 
             redshift = z_at_t(t + dt)
 
-            sfr_int = sfr_model(model_params, t, redshift, *y2, *interp[:-1], cache)
+            sfr_int = sfr_model(model_params, t, redshift,
+                                *y2, *interp[:-1], cache)
 
             sfr_hist = CubicSpline(
                 np.append(times[: i + 1], t + dt),
@@ -380,14 +381,21 @@ def evolve_2o(
             n = len(times)
             times = np.append(times, np.full(n, np.inf))
             gas_masses = np.vstack((gas_masses, fp_zeros((n, len(init_gas)))))
-            star_masses = np.vstack((star_masses, fp_zeros((n, len(init_star)))))
-            metal_masses = np.vstack((metal_masses, fp_zeros((n, len(init_metal)))))
-            dust_masses = np.vstack((dust_masses, fp_zeros((n, len(init_dust)))))
+            star_masses = np.vstack(
+                (star_masses, fp_zeros((n, len(init_star)))))
+            metal_masses = np.vstack(
+                (metal_masses, fp_zeros((n, len(init_metal)))))
+            dust_masses = np.vstack(
+                (dust_masses, fp_zeros((n, len(init_dust)))))
 
-            dgas_masses = np.vstack((dgas_masses, fp_zeros((n, len(init_gas)))))
-            dstar_masses = np.vstack((dstar_masses, fp_zeros((n, len(init_star)))))
-            dmetal_masses = np.vstack((dmetal_masses, fp_zeros((n, len(init_metal)))))
-            ddust_masses = np.vstack((ddust_masses, fp_zeros((n, len(init_dust)))))
+            dgas_masses = np.vstack(
+                (dgas_masses, fp_zeros((n, len(init_gas)))))
+            dstar_masses = np.vstack(
+                (dstar_masses, fp_zeros((n, len(init_star)))))
+            dmetal_masses = np.vstack(
+                (dmetal_masses, fp_zeros((n, len(init_metal)))))
+            ddust_masses = np.vstack(
+                (ddust_masses, fp_zeros((n, len(init_dust)))))
 
             star_formation_rates = np.append(star_formation_rates, fp_zeros(n))
 
@@ -438,6 +446,9 @@ def evolve_2o(
         )
 
         interp = [gas_hist, star_hist, metal_hist, dust_hist, sfr_hist]
+
+        # Nice little progress bar
+        update_progress(t / time_end)
 
     # calculate the derivatives at the very end, so that we can Hermite int.
     dmgas_astration = sfr * (mgas / mgas[0])
@@ -986,3 +997,29 @@ def evolve_sfr(
 
     return results
 """
+
+
+def update_progress(progress):
+    """
+    from user Brian Khuu on stack exchange, displays a nice little
+    progress bar.
+    """
+    barLength = 50  # Modify this to change the length of the progress bar
+    status = ""
+    if isinstance(progress, int):
+        progress = float(progress)
+    if not isinstance(progress, float):
+        progress = 0
+        status = "error: progress var must be float\r\n"
+    if progress < 0:
+        progress = 0
+        status = "Halt...\r\n"
+    if progress >= 1:
+        progress = 1
+        status = "Done...\r\n"
+    block = int(round(barLength * progress))
+    text = "\rPercent: [{0}] {1:.0f}% {2}".format(
+        "█" * block + "-" * (barLength - block), progress * 100, status
+    )
+    sys.stdout.write(text)
+    sys.stdout.flush()

@@ -91,8 +91,8 @@ def stellar_ejecta(
         # of this step.
         count += 1
         logm_new = log10(m) + dlogm
-        dm = 10.0 ** (logm_new) - m
-        mmid = 10.0 ** ((logm_new + log10(m)) / 2.0)
+        dm = 10 ** (logm_new) - m
+        mmid = 10 ** ((logm_new + log10(m)) / 2.0)
 
         # calculate lifetime based on midpoint of this step,
         # and use that to find the time when such a star was born
@@ -269,7 +269,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, m, metallicity):
 
     for i, cutoff in enumerate(metallicity_cutoffs):
         if metallicity[0] <= cutoff:
-            return yields[i * stepsize: (i + 1) * stepsize]
+            return yields[i * stepsize: (i * stepsize) + 1]
 
 
 def fresh_dust(

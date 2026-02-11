@@ -53,6 +53,8 @@ def sfr_from_file(
 
 
 # stellar lifetime table according to Schaller et. al 1992
+# First column is initial mass in Msol, second is lifetime
+# in Gyr at Z = 0.001 and third is lifetime at Z = 0.02
 S92 = np.array(
     (
         (0.8, 15.0, 26.0),
@@ -79,27 +81,30 @@ S92 = np.array(
 TF01 = np.array(
     (
         (8.5, 0),
-        (9, 0.17),
-        (12, 0.2),
-        (15, 0.5),
-        (20, 0.5),
-        (22, 0.8),
-        (25, 1.0),
-        (30, 1.0),
-        (35, 0.6),
-        (40, 0.4),
+        (9, 0.7674),
+        (12, 0.5),
+        (15, 0.3508),
+        (20, 0.176),
+        (25, 0.2239),
+        (30, 0.15),
+        (35, 0.08),
+        (40, 0.0451),
     )
 )
 
 # van den Hoek and Maeder metal yields table.
+# first column is initial mass, subsequent columns are
+# total metal yield and oxygen yield at Z = 0.001, 0.004, 0.008, 0.02
 # the np.nextafter line is to ensure that, when nn interpolating,
 # only yields from stellar winds are considered for m > 40
 # as what would be considered "supernova ejecta," while still
 # calculable for these stars, will be trapped in a black hole
 vdHG97_M92_yields = np.array(
     (
-        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07, 6.147e-05, 2.565e-05, 0, -3.483e-05),
-        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05, 0.000112, 5.36e-05, 0.00161, 0.000981),
+        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07,
+         6.147e-05, 2.565e-05, 0, -3.483e-05),
+        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05,
+         0.000112, 5.36e-05, 0.00161, 0.000981),
         (
             1.3,
             0.004017,
@@ -177,7 +182,8 @@ vdHG97_M92_yields = np.array(
             0.02496,
             -0.000864,
         ),
-        (5.0, 0.0386, 0.00206, 0.03535, 0.001285, 0.03295, 0.00033, 0.0314, -0.001455),
+        (5.0, 0.0386, 0.00206, 0.03535, 0.001285,
+         0.03295, 0.00033, 0.0314, -0.001455),
         (
             7.0,
             0.06727,
@@ -217,3 +223,5 @@ vdHG97_M92_yields = np.array(
 # metallicity cutoffs for the previous yield table
 # Z < 0.0025 means use the first set, z < 0.006 use the second, etc.
 vdHG97_M92_cutoffs = np.array((0.0025, 0.006, 0.01, np.inf))
+
+#

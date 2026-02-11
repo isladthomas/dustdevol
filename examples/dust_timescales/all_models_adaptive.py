@@ -7,9 +7,20 @@ from dustdevol.adaptive.DeVis2017 import (
     dust_destruction,
     fast_ejecta,
 )
-from numpy import arange, maximum, minimum, column_stack, inf
-import matplotlib.pyplot as plt
+from numpy import (
+    maximum,
+    minimum,
+    column_stack,
+    savez_compressed,
+    array,
+)
 from copy import deepcopy
+import logging
+
+tol = 1e-9
+
+logging.captureWarnings(True)
+logging.basicConfig(filename="Warnings.log", level=logging.WARNING)
 
 
 def Mattson_gg(
@@ -35,10 +46,19 @@ def Mattson_gg(
     )
 
     try:
-        model_params["gg_timescale"][t] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
+        cache["gg_efficiency"][t] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
+        cache["gg_timescale"][t] = time_gg[0]
+        cache["gg_efficiency"] = {
+            key: value for key, value in cache["gg_efficiency"].items() if key <= t
+        }
+        cache["gg_timescale"] = {
+            key: value for key, value in cache["gg_timescale"].items() if key <= t
+        }
     except KeyError:
-        model_params["gg_timescale"] = {}
-        model_params["gg_timescale"][t] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
+        cache["gg_efficiency"] = {}
+        cache["gg_efficiency"][t] = (time_gg / (1.0 - (mdust / mmetal[0])))[0]
+        cache["gg_timescale"] = {}
+        cache["gg_timescale"][t] = time_gg[0]
 
     mdust_gg = mdust * (1.0 - (mdust / mmetal[0])) * time_gg**-1
     if any(mdust_gg != mdust_gg):
@@ -76,14 +96,25 @@ def bad_DeVis_gg(
     )
 
     try:
-        model_params["gg_timescale"][t] = (time_gg / (
-            (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
-        ))[0]
+        cache["gg_efficiency"][t] = (
+            time_gg / ((1.0 - (mdust / mmetal[0]))
+                       * model_params["cold_fraction"])
+        )[0]
+        cache["gg_timescale"][t] = time_gg[0]
+        cache["gg_efficiency"] = {
+            key: value for key, value in cache["gg_efficiency"].items() if key <= t
+        }
+        cache["gg_timescale"] = {
+            key: value for key, value in cache["gg_timescale"].items() if key <= t
+        }
     except KeyError:
-        model_params["gg_timescale"] = {}
-        model_params["gg_timescale"][t] = (time_gg / (
-            (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
-        ))[0]
+        cache["gg_efficiency"] = {}
+        cache["gg_efficiency"][t] = (
+            time_gg / ((1.0 - (mdust / mmetal[0]))
+                       * model_params["cold_fraction"])
+        )[0]
+        cache["gg_timescale"] = {}
+        cache["gg_timescale"][t] = time_gg[0]
 
     mdust_gg = (
         mdust
@@ -127,14 +158,25 @@ def DeVis_gg(
     )
 
     try:
-        model_params["gg_timescale"][t] = (time_gg / (
-            (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
-        ))[0]
+        cache["gg_efficiency"][t] = (
+            time_gg / ((1.0 - (mdust / mmetal[0]))
+                       * model_params["cold_fraction"])
+        )[0]
+        cache["gg_timescale"][t] = time_gg[0]
+        cache["gg_efficiency"] = {
+            key: value for key, value in cache["gg_efficiency"].items() if key <= t
+        }
+        cache["gg_timescale"] = {
+            key: value for key, value in cache["gg_timescale"].items() if key <= t
+        }
     except KeyError:
-        model_params["gg_timescale"] = {}
-        model_params["gg_timescale"][t] = (time_gg / (
-            (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
-        ))[0]
+        cache["gg_efficiency"] = {}
+        cache["gg_efficiency"][t] = (
+            time_gg / ((1.0 - (mdust / mmetal[0]))
+                       * model_params["cold_fraction"])
+        )[0]
+        cache["gg_timescale"] = {}
+        cache["gg_timescale"][t] = time_gg[0]
 
     mdust_gg = (
         mdust
@@ -203,16 +245,39 @@ def BEDE_gg(
     mdust_gg = max(diffuse_mdust_gg + cloud_mdust_gg, 0)
 
     try:
-        model_params["gg_timescale"][t] = ((
-            ((1 - model_params["cold_fraction"]) / diffuse_time_gg)
-            + (model_params["cold_fraction"] / cloud_time_gg)
-        ) ** (-1))[0]
+        cache["gg_efficiency"][t] = (
+            (
+                ((1 - model_params["cold_fraction"]) / diffuse_time_gg)
+                + (model_params["cold_fraction"] / cloud_time_gg)
+            )
+            ** (-1)
+        )[0]
+        cache["gg_diffuse_timescale"][t] = diffuse_time_gg[0]
+        cache["gg_cloud_timescale"][t] = cloud_time_gg[0]
+        cache["gg_efficiency"] = {
+            key: value for key, value in cache["gg_efficiency"].items() if key <= t
+        }
+        cache["gg_diffuse_timescale"] = {
+            key: value
+            for key, value in cache["gg_diffuse_timescale"].items()
+            if key <= t
+        }
+        cache["gg_cloud_timescale"] = {
+            key: value for key, value in cache["gg_cloud_timescale"].items() if key <= t
+        }
     except KeyError:
-        model_params["gg_timescale"] = {}
-        model_params["gg_timescale"][t] = ((
-            ((1 - model_params["cold_fraction"]) / diffuse_time_gg)
-            + (model_params["cold_fraction"] / cloud_time_gg)
-        ) ** (-1))[0]
+        cache["gg_efficiency"] = {}
+        cache["gg_efficiency"][t] = (
+            (
+                ((1 - model_params["cold_fraction"]) / diffuse_time_gg)
+                + (model_params["cold_fraction"] / cloud_time_gg)
+            )
+            ** (-1)
+        )[0]
+        cache["gg_diffuse_timescale"] = {}
+        cache["gg_cloud_timescale"] = {}
+        cache["gg_diffuse_timescale"][t] = diffuse_time_gg[0]
+        cache["gg_cloud_timescale"][t] = cloud_time_gg[0]
 
     return mdust_gg
 
@@ -254,14 +319,25 @@ def Asano_gg(
     )
 
     try:
-        model_params["gg_timescale"][t] = (time_gg / (
-            (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
-        ))[0]
+        cache["gg_efficiency"][t] = (
+            time_gg / ((1.0 - (mdust / mmetal[0]))
+                       * model_params["cold_fraction"])
+        )[0]
+        cache["gg_timescale"][t] = time_gg[0]
+        cache["gg_efficiency"] = {
+            key: value for key, value in cache["gg_efficiency"].items() if key <= t
+        }
+        cache["gg_timescale"] = {
+            key: value for key, value in cache["gg_timescale"].items() if key <= t
+        }
     except KeyError:
-        model_params["gg_timescale"] = {}
-        model_params["gg_timescale"][t] = (time_gg / (
-            (1.0 - (mdust / mmetal[0])) * model_params["cold_fraction"]
-        ))[0]
+        cache["gg_efficiency"] = {}
+        cache["gg_efficiency"][t] = (
+            time_gg / ((1.0 - (mdust / mmetal[0]))
+                       * model_params["cold_fraction"])
+        )[0]
+        cache["gg_timescale"] = {}
+        cache["gg_timescale"][t] = time_gg[0]
 
     mdust_gg = (
         mdust
@@ -284,7 +360,7 @@ def Asano_gt(e, mgas, sfr, mmetal, mdust):
 inits_Mattson = [
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -311,11 +387,11 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -342,11 +418,11 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -375,11 +451,11 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -408,11 +484,11 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -441,11 +517,11 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -474,11 +550,11 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
     {
         "time_start": 0,
-        "time_end": 20,
+        "time_end": 13.79,
         "sfr_model": g.sfr_from_file,
         "imf": chab,
         "inflow_model": xSFR_inflow,
@@ -507,7 +583,7 @@ inits_Mattson = [
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
         },
         "absolute_tolerance": 1,
-        "relative_tolerance": 1e-3,
+        "relative_tolerance": tol,
     },
 ]
 
@@ -542,13 +618,53 @@ for title, models in zip(titles[3:], inits[3:]):
     for i, model in enumerate(models):
         print("Working on Model {} with {} gg".format(title, legend[i]))
         results = evolve_2o(**model)
-        plt.plot(results["times"], [model["model_params"]["gg_timescale"][t] for t in results["times"]])
-
-    plt.suptitle("Model " + title)
-    plt.title("Dust Growth Timescale")
-    plt.ylabel("Timescale (Gyr Msol / Msol)")
-    plt.xlabel("Time (Gyr)")
-    plt.yscale("log")
-    plt.legend(legend)
-    plt.savefig("Model_" + title + "_gg_adaptive.png")
-    plt.clf()
+        if legend[i] == "BEDE":
+            output = {
+                "times": results["times"],
+                "gas_masses": results["gas_masses"],
+                "star_masses": results["star_masses"],
+                "metal_masses": results["metal_masses"],
+                "dust_masses": results["dust_masses"],
+                "dgas_masses": results["dgas_masses"],
+                "dstar_masses": results["dstar_masses"],
+                "dmetal_masses": results["dmetal_masses"],
+                "ddust_masses": results["ddust_masses"],
+                "gg_efficiency": array(
+                    [results["cache"]["gg_efficiency"][t]
+                        for t in results["times"]]
+                )[:, None],
+                "gg_diffuse_timescale": array(
+                    [
+                        results["cache"]["gg_diffuse_timescale"][t]
+                        for t in results["times"]
+                    ]
+                )[:, None],
+                "gg_cloud_timescale": array(
+                    [
+                        results["cache"]["gg_cloud_timescale"][t]
+                        for t in results["times"]
+                    ]
+                )[:, None],
+            }
+        else:
+            output = {
+                "times": results["times"],
+                "gas_masses": results["gas_masses"],
+                "star_masses": results["star_masses"],
+                "metal_masses": results["metal_masses"],
+                "dust_masses": results["dust_masses"],
+                "dgas_masses": results["dgas_masses"],
+                "dstar_masses": results["dstar_masses"],
+                "dmetal_masses": results["dmetal_masses"],
+                "ddust_masses": results["ddust_masses"],
+                "gg_efficiency": array(
+                    [results["cache"]["gg_efficiency"][t]
+                        for t in results["times"]]
+                )[:, None],
+                "gg_timescale": array(
+                    [results["cache"]["gg_timescale"][t]
+                        for t in results["times"]]
+                )[:, None],
+            }
+        savez_compressed(
+            "outputs/Model_{}_{}_gg".format(title, legend[i]), **output)
