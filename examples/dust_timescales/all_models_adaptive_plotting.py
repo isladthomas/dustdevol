@@ -1,4 +1,4 @@
-from numpy import load, log10
+from numpy import load, log10, diff
 import matplotlib.pyplot as plt
 
 titles = ["IV", "V", "VI", "VII"]
@@ -119,6 +119,12 @@ for title in titles:
                     data["gg_timescale"],
                 )
 
+            plt.figure(9)
+            plt.plot(
+                data["times"][:-1],
+                diff(data["times"]),
+            )
+
     plt.figure(1)
     plt.suptitle("Model " + title)
     plt.title("Dust Grow Efficiency Vs. Time")
@@ -201,4 +207,14 @@ for title in titles:
     plt.yscale("log")
     plt.legend(timescales)
     plt.savefig("plots/Model_" + title + "_gg_time_logOH.eps")
+    plt.clf()
+
+    plt.figure(9)
+    plt.suptitle("Model " + title)
+    plt.title("Timestep Vs. Time")
+    plt.ylabel("Timestep (Gyr)")
+    plt.xlabel("Time (Gyr)")
+    plt.yscale("log")
+    plt.legend(efficiencies)
+    plt.savefig("plots/Model_" + title + "_gg_timesteps.eps")
     plt.clf()

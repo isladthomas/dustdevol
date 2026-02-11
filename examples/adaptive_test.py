@@ -5,9 +5,9 @@ from dustdevol.adaptive.DeVis2017 import (
     xSFR_inflow,
     xSFR_outflow,
     grain_growth,
-    dust_destruction,
     fast_dust_destruction,
     fast_ejecta,
+    Gauss_Kronrod_ejecta,
 )
 import dustdevol.evolve as e
 import dustdevol.generic as g2
@@ -27,7 +27,7 @@ results = evolve_2o(
     xSFR_outflow,
     g.off,
     grain_growth,
-    dust_destruction,
+    fast_dust_destruction,
     fast_ejecta,
     [4e10],
     [0],
@@ -69,7 +69,7 @@ results_fast = evolve_2o(
     g.off,
     grain_growth,
     fast_dust_destruction,
-    fast_ejecta,
+    Gauss_Kronrod_ejecta,
     [4e10],
     [0],
     [0, 0],
@@ -142,7 +142,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 1])
 plt.plot(results["times"], results["gas_masses"])
 plt.plot(results_fast["times"], results_fast["gas_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("gas_adaptive.png")
 plt.clf()
 
@@ -150,7 +150,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 2])
 plt.plot(results["times"], results["star_masses"])
 plt.plot(results_fast["times"], results_fast["star_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("stars_adaptive.png")
 plt.clf()
 
@@ -158,7 +158,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 3])
 plt.plot(results["times"], results["metal_masses"][:, 0])
 plt.plot(results_fast["times"], results_fast["metal_masses"][:, 0])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("metals_adaptive.png")
 plt.clf()
 
@@ -166,7 +166,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 4])
 plt.plot(results["times"], results["metal_masses"][:, 1])
 plt.plot(results_fast["times"], results_fast["metal_masses"][:, 1])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("oxygen_adaptive.png")
 plt.clf()
 
@@ -174,11 +174,10 @@ plt.plot(results_slow[:, 0], results_slow[:, 5])
 plt.plot(results["times"], results["dust_masses"])
 plt.plot(results_fast["times"], results_fast["dust_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "Fast Destruction Code"])
+plt.legend(["Original Code", "Adaptive Code", "GK Code"])
 plt.savefig("dust_adaptive.png")
 plt.clf()
 
-"""
 end = 0.1
 to_plot = results["times"] <= end
 
@@ -198,4 +197,3 @@ plt.plot(
 plt.grid()
 plt.savefig("integral accuracy.png")
 plt.clf()
-"""

@@ -17,7 +17,7 @@ from numpy import (
 from copy import deepcopy
 import logging
 
-tol = 1e-9
+tol = 1e-6
 
 logging.captureWarnings(True)
 logging.basicConfig(filename="Warnings.log", level=logging.WARNING)
@@ -629,6 +629,7 @@ for title, models in zip(titles[3:], inits[3:]):
                 "dstar_masses": results["dstar_masses"],
                 "dmetal_masses": results["dmetal_masses"],
                 "ddust_masses": results["ddust_masses"],
+                "sfr": results["sfr"],
                 "gg_efficiency": array(
                     [results["cache"]["gg_efficiency"][t]
                         for t in results["times"]]
@@ -657,6 +658,7 @@ for title, models in zip(titles[3:], inits[3:]):
                 "dstar_masses": results["dstar_masses"],
                 "dmetal_masses": results["dmetal_masses"],
                 "ddust_masses": results["ddust_masses"],
+                "sfr": results["sfr"],
                 "gg_efficiency": array(
                     [results["cache"]["gg_efficiency"][t]
                         for t in results["times"]]
