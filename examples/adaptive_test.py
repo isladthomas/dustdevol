@@ -1,12 +1,11 @@
 from dustdevol.adaptive.evolve import evolve_2o
-from dustdevol.adaptive.imf import chab, log_chab
+from dustdevol.adaptive.imf import chab
 import dustdevol.adaptive.generic as g
 from dustdevol.adaptive.DeVis2017 import (
     xSFR_inflow,
     xSFR_outflow,
     grain_growth,
     fast_dust_destruction,
-    log_fast_dust_destruction,
     fast_ejecta,
     Gauss_Kronrod_ejecta,
 )
@@ -64,12 +63,12 @@ results_fast = evolve_2o(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
-    log_chab,
+    chab,
     xSFR_inflow,
     xSFR_outflow,
     g.off,
     grain_growth,
-    log_fast_dust_destruction,
+    fast_dust_destruction,
     Gauss_Kronrod_ejecta,
     [4e10],
     [0],
