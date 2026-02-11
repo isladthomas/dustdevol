@@ -255,14 +255,17 @@ def Gauss_Kronrod_ejecta(
 
     except KeyError:
 
-        cache["ejecta_masses"] = ((sample_points_pre + 1) / 2) * (119.2) + 0.8
+        log_ejecta_masses = ((sample_points_pre + 1) / 2) * (
+            log10(120 / 0.8)
+        ) + log10(0.8)
+        cache["ejecta_masses"] = 10 ** log_ejecta_masses
         cache["ejecta_subdivisions"] = 1
         masses = cache["ejecta_masses"]
         remnants = remnant_mass(masses)
         cache["ejecta_vals"] = masses - remnants
-        cache["imf_values"] = array([imf(xi) for xi in masses])
-        cache["gauss_weights"] = gauss_weights_pre * 59.6
-        cache["kronrod_weights"] = kronrod_weights_pre * 59.6
+        cache["imf_values"] = array([imf(xi) for xi in log_ejecta_masses])
+        cache["gauss_weights"] = gauss_weights_pre * (log10(120 / 0.8) / 2)
+        cache["kronrod_weights"] = kronrod_weights_pre * (log10(120 / 0.8) / 2)
 
         ejecta = cache["ejecta_vals"]
         imf_vals = cache["imf_values"]
@@ -328,7 +331,7 @@ def Gauss_Kronrod_ejecta(
 
         err = hstack((err_gas, err_metal, err_dust)) / (
             1
-            + 1e-2
+            + 1e-3
             * maximum(
                 hstack((ejected_gas_k, ejected_metal_k, ejected_dust_k)),
                 hstack((ejected_gas_g, ejected_metal_g, ejected_dust_g)),
@@ -350,7 +353,7 @@ def Gauss_Kronrod_ejecta(
             cache["ejecta_subdivisions"] *= 2
             ints = cache["ejecta_subdivisions"]
 
-            mesh = array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
+            mesh = array([log10(0.8) + (i * log10(120/0.8) / ints) for i in range(ints + 1)])
 
             cache["ejecta_masses"] = []
             cache["gauss_weights"] = []
@@ -368,14 +371,15 @@ def Gauss_Kronrod_ejecta(
                     kronrod_weights_pre * (mesh[i + 1] - mesh[i]) / 2
                 )
 
-            cache["ejecta_masses"] = array(cache["ejecta_masses"])
+            log_ejecta_masses = array(cache["ejecta_masses"])
             cache["gauss_weights"] = array(cache["gauss_weights"])
             cache["kronrod_weights"] = array(cache["kronrod_weights"])
 
+            cache["ejecta_masses"] = 10 ** log_ejecta_masses
             masses = cache["ejecta_masses"]
             remnants = remnant_mass(masses)
             cache["ejecta_vals"] = masses - remnants
-            cache["imf_values"] = array([imf(xi) for xi in masses])
+            cache["imf_values"] = array([imf(xi) for xi in log_ejecta_masses])
 
             ejecta = cache["ejecta_vals"]
             imf_vals = cache["imf_values"]

@@ -49,3 +49,13 @@ def chab(m):
         imf = 0.0443 * (m ** (-1.3))
     imf = imf / (m * np.log(10))
     return imf / 0.0815731452799614
+
+
+# This is what I get by directly copying the chab function from Rowlands 2014
+# and then normalizing to 1 from 0.1 to 120
+def log_chab(log_m):
+    if log_m <= 0:
+        imf = 0.158 * np.exp(-((log_m - np.log10(0.079)) ** 2) / (2 * 0.69**2))
+    else:
+        imf = 0.0443 * ((10**log_m) ** (-1.3))
+    return imf / 0.0815731452799614
