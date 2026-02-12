@@ -27,7 +27,7 @@ def evolve_2o(
     # guess at needed time step, and allocate space assuming that's
     # the time step.
     # TODO: More sophisticated first step choice
-    dt = 0.001
+    dt = 0.003
     steps_guess = int(np.ceil((time_end - time_start) / dt))
 
     # Create arrays to store all outputs

@@ -7,8 +7,8 @@ from dustdevol.adaptive.DeVis2017 import (
     grain_growth,
     fast_dust_destruction,
     fast_ejecta,
-    Gauss_Kronrod_ejecta,
 )
+import dustdevol.adaptive.BEDE2 as bede
 import dustdevol.evolve as e
 import dustdevol.generic as g2
 import dustdevol.DeVis2017 as D
@@ -47,7 +47,7 @@ results = evolve_2o(
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    1e-3,
+    5e-1,
 )
 end = timer()
 time = end - start
@@ -68,8 +68,8 @@ results_fast = evolve_2o(
     xSFR_outflow,
     g.off,
     grain_growth,
-    fast_dust_destruction,
-    Gauss_Kronrod_ejecta,
+    bede.fast_dust_destruction,
+    bede.fast_ejecta,
     [4e10],
     [0],
     [0, 0],
@@ -82,13 +82,13 @@ results_fast = evolve_2o(
         "outflow_xSFR": 0,
         "cold_fraction": 0.5,
         "grain_growth_epsilon": 0,
-        "stellar_lifetimes": g.S92,
+        "stellar_lifetimes": g.stellar_lifetimes,
         "dust_yields": g.TF01,
         "metal_yields": g.vdHG97_M92_yields,
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    1e-3,
+    5e-1,
 )
 end = timer()
 time = end - start
