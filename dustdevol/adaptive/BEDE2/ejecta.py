@@ -7,9 +7,10 @@ from numpy import (
     clip,
 )
 from scipy.optimize import root
+from timeit import default_timer as timer
 
 
-def life_from_mass_vec(masses, metallicity, metal_hist, gas_hist, stellar_lifetimes, t):
+def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache):
     """
     Function which finds stellar lifetime by solving the equation
     tau_f(Z(t - tau), m) - tau = 0
@@ -17,15 +18,47 @@ def life_from_mass_vec(masses, metallicity, metal_hist, gas_hist, stellar_lifeti
     stars of mass m
     """
 
-    tau0 = stellar_lifetimes((metallicity, masses))
+    try:
+        tau0 = cache["ejecta_lifetimes"]
+    except KeyError:
+        cache["ejecta_lifetimes"] = stellar_lifetimes((0, masses))
+        tau0 = cache["ejecta_lifetimes"]
 
-    soln = root(
-        lambda tau: stellar_lifetimes(
-            ((metal_hist(t - tau) / gas_hist(t - tau))[:, 0], masses)
-        )
-        - tau,
-        tau0,
-    ).x
+    if (
+        abs(
+            (
+                stellar_lifetimes(
+                    (
+                        clip(
+                            (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
+                            0.001,
+                            0.04,
+                        ),
+                        masses,
+                    )
+                )
+                - tau0
+            )
+        ).max()
+        > 2e-3
+    ):
+        soln = root(
+            lambda tau: stellar_lifetimes(
+                (
+                    clip((metal_hist(t - tau) / gas_hist(t - tau))
+                         [:, 0], 0.001, 0.04),
+                    masses,
+                )
+            )
+            - tau,
+            tau0,
+            method="krylov",
+            options={"fatol": 2e-3},
+        ).x
+    else:
+        soln = tau0
+
+    cache["ejecta_lifetimes"] = soln
 
     return soln
 
@@ -157,7 +190,7 @@ def fast_ejecta(
 
     # determine if high or low metallicity lifetimes are to be used
     lifetimes = life_from_mass_vec(
-        masses, mmetal[0] / mgas[0], metal_hist, gas_hist, stellar_lifetimes, t
+        masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     )
 
     d_masses = where(t > lifetimes, d_masses, 0)

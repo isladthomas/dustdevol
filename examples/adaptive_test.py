@@ -47,7 +47,7 @@ results = evolve_2o(
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    5e-1,
+    1e-3,
 )
 end = timer()
 time = end - start
@@ -88,7 +88,7 @@ results_fast = evolve_2o(
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    5e-1,
+    1e-3,
 )
 end = timer()
 time = end - start
@@ -99,6 +99,7 @@ print("(out of {} attempted steps...)".format(
     results_fast["cache"]["attempted_steps"]))
 print("Smallest step was {} Gyr".format(np.diff(results_fast["times"]).min()))
 start = timer()
+
 results_slow = e.evolve_sfr(
     g2.fp(0),
     g2.fp(13.79),
@@ -142,7 +143,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 1])
 plt.plot(results["times"], results["gas_masses"])
 plt.plot(results_fast["times"], results_fast["gas_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Z at Birth Code"])
 plt.savefig("gas_adaptive.png")
 plt.clf()
 
@@ -150,7 +151,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 2])
 plt.plot(results["times"], results["star_masses"])
 plt.plot(results_fast["times"], results_fast["star_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Z at Birth Code"])
 plt.savefig("stars_adaptive.png")
 plt.clf()
 
@@ -158,7 +159,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 3])
 plt.plot(results["times"], results["metal_masses"][:, 0])
 plt.plot(results_fast["times"], results_fast["metal_masses"][:, 0])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Z at Birth Code"])
 plt.savefig("metals_adaptive.png")
 plt.clf()
 
@@ -166,7 +167,7 @@ plt.plot(results_slow[:, 0], results_slow[:, 4])
 plt.plot(results["times"], results["metal_masses"][:, 1])
 plt.plot(results_fast["times"], results_fast["metal_masses"][:, 1])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Z at Birth Code"])
 plt.savefig("oxygen_adaptive.png")
 plt.clf()
 
@@ -174,21 +175,27 @@ plt.plot(results_slow[:, 0], results_slow[:, 5])
 plt.plot(results["times"], results["dust_masses"])
 plt.plot(results_fast["times"], results_fast["dust_masses"])
 plt.yscale("log")
-plt.legend(["Original Code", "Adaptive Code", "GK Code"])
+plt.legend(["Original Code", "Adaptive Code", "Z at Birth Code"])
 plt.savefig("dust_adaptive.png")
 plt.clf()
 
-end = 0.1
+end = 13.79
 to_plot = results["times"] <= end
+to_plot_fast = results_fast["times"] <= end
 
 plt.plot(results["times"][to_plot], np.diff(results["times"])[to_plot[:-1]])
+plt.plot(
+    results_fast["times"][to_plot_fast],
+    np.diff(results_fast["times"])[to_plot_fast[:-1]],
+)
 plt.xlim(0, end)
 plt.yscale("log")
-plt.xticks(np.arange(0, end, 0.0028))
+plt.legend(["Adaptive Code", "Z at Birth Code"])
 plt.grid()
 plt.savefig("timesteps.png")
 plt.clf()
 
+"""
 plt.plot(
     results_fast["times"],
     [results_fast["cache"]["integral_accuracy"].get(
@@ -197,3 +204,4 @@ plt.plot(
 plt.grid()
 plt.savefig("integral accuracy.png")
 plt.clf()
+"""
