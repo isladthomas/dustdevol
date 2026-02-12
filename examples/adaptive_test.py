@@ -1,4 +1,4 @@
-from dustdevol.adaptive.evolve import evolve_2o
+from dustdevol.adaptive.evolve import evolve_2o, evolve_3o
 from dustdevol.adaptive.imf import chab
 import dustdevol.adaptive.generic as g
 from dustdevol.adaptive.DeVis2017 import (
@@ -59,7 +59,7 @@ print("(out of {} attempted steps...)".format(
 print("Smallest step was {} Gyr".format(np.diff(results["times"]).min()))
 
 start = timer()
-results_fast = evolve_2o(
+results_fast = evolve_3o(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
@@ -68,8 +68,8 @@ results_fast = evolve_2o(
     xSFR_outflow,
     g.off,
     grain_growth,
-    bede.fast_dust_destruction,
-    bede.fast_ejecta,
+    fast_dust_destruction,
+    fast_ejecta,
     [4e10],
     [0],
     [0, 0],
@@ -82,7 +82,7 @@ results_fast = evolve_2o(
         "outflow_xSFR": 0,
         "cold_fraction": 0.5,
         "grain_growth_epsilon": 0,
-        "stellar_lifetimes": g.stellar_lifetimes,
+        "stellar_lifetimes": g.S92,
         "dust_yields": g.TF01,
         "metal_yields": g.vdHG97_M92_yields,
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
