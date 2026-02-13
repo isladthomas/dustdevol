@@ -1,4 +1,4 @@
-from dustdevol.adaptive.evolve import evolve_2o, evolve_3o
+from dustdevol.adaptive.evolve import evolve_4o, evolve_6o
 from dustdevol.adaptive.imf import chab
 import dustdevol.adaptive.generic as g
 from dustdevol.adaptive.DeVis2017 import (
@@ -18,7 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 start = timer()
-results = evolve_2o(
+results = evolve_4o(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
@@ -27,8 +27,8 @@ results = evolve_2o(
     xSFR_outflow,
     g.off,
     grain_growth,
-    fast_dust_destruction,
-    fast_ejecta,
+    bede.fast_dust_destruction,
+    bede.fast_ejecta,
     [4e10],
     [0],
     [0, 0],
@@ -41,13 +41,13 @@ results = evolve_2o(
         "outflow_xSFR": 0,
         "cold_fraction": 0.5,
         "grain_growth_epsilon": 0,
-        "stellar_lifetimes": g.S92,
+        "stellar_lifetimes": g.stellar_lifetimes,
         "dust_yields": g.TF01,
         "metal_yields": g.vdHG97_M92_yields,
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    1e-3,
+    1e-6,
 )
 end = timer()
 time = end - start
@@ -59,7 +59,7 @@ print("(out of {} attempted steps...)".format(
 print("Smallest step was {} Gyr".format(np.diff(results["times"]).min()))
 
 start = timer()
-results_fast = evolve_3o(
+results_fast = evolve_6o(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
@@ -68,8 +68,8 @@ results_fast = evolve_3o(
     xSFR_outflow,
     g.off,
     grain_growth,
-    fast_dust_destruction,
-    fast_ejecta,
+    bede.fast_dust_destruction,
+    bede.fast_ejecta,
     [4e10],
     [0],
     [0, 0],
@@ -82,13 +82,13 @@ results_fast = evolve_3o(
         "outflow_xSFR": 0,
         "cold_fraction": 0.5,
         "grain_growth_epsilon": 0,
-        "stellar_lifetimes": g.S92,
+        "stellar_lifetimes": g.stellar_lifetimes,
         "dust_yields": g.TF01,
         "metal_yields": g.vdHG97_M92_yields,
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    1e-3,
+    1e-6,
 )
 end = timer()
 time = end - start
@@ -179,7 +179,7 @@ plt.legend(["Original Code", "Adaptive Code", "Z at Birth Code"])
 plt.savefig("dust_adaptive.png")
 plt.clf()
 
-end = 13.79
+end = 0.03
 to_plot = results["times"] <= end
 to_plot_fast = results_fast["times"] <= end
 
