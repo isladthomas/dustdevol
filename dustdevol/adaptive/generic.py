@@ -11,6 +11,16 @@ def fp_zeros(shape):
     return np.zeros(shape, dtype=fp)
 
 
+# initialize an array from an iterable, using wp
+def fp_array(iterable):
+    return np.array(iterable, dtype=fp)
+
+
+# initialize an empty array with given shape, using wp
+def fp_empty(shape):
+    return np.empty(shape, dtype=fp)
+
+
 # create a function which takes in time values and calculates
 # the redshift at that time, assuming cosmological parameters
 # from the Planck 2013 study
@@ -79,8 +89,7 @@ S92 = np.array(
 
 S92S93_Z = np.array((0.001, 0.008, 0.02, 0.04))
 S92S93_M = np.array(
-    (0.8, 0.9, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0,
-     7.0, 12.0, 20.0, 40.0, 60.0, 85.0, 120.0)
+    (0.8, 0.9, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0, 12.0, 20.0, 40.0, 60.0, 85.0, 120.0)
 )
 
 S92S93 = np.array(
@@ -158,7 +167,11 @@ S92S93 = np.array(
 
 
 stellar_lifetimes = interpolate.RegularGridInterpolator(
-    (S92S93_Z, S92S93_M), S92S93 * 1e-9, method="cubic", bounds_error=False, fill_value=None
+    (S92S93_Z, S92S93_M),
+    S92S93 * 1e-9,
+    method="cubic",
+    bounds_error=False,
+    fill_value=None,
 )
 
 
@@ -186,10 +199,8 @@ TF01 = np.array(
 # calculable for these stars, will be trapped in a black hole
 vdHG97_M92_yields = np.array(
     (
-        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07,
-         6.147e-05, 2.565e-05, 0, -3.483e-05),
-        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05,
-         0.000112, 5.36e-05, 0.00161, 0.000981),
+        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07, 6.147e-05, 2.565e-05, 0, -3.483e-05),
+        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05, 0.000112, 5.36e-05, 0.00161, 0.000981),
         (
             1.3,
             0.004017,
@@ -267,8 +278,7 @@ vdHG97_M92_yields = np.array(
             0.02496,
             -0.000864,
         ),
-        (5.0, 0.0386, 0.00206, 0.03535, 0.001285,
-         0.03295, 0.00033, 0.0314, -0.001455),
+        (5.0, 0.0386, 0.00206, 0.03535, 0.001285, 0.03295, 0.00033, 0.0314, -0.001455),
         (
             7.0,
             0.06727,

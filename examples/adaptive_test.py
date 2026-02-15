@@ -1,4 +1,5 @@
-from dustdevol.adaptive.evolve import evolve_4o, evolve_6o
+from dustdevol.adaptive.evolve import evolve_2o
+from dustdevol.adaptive.evolve_FCRK import evolve_2o_FC
 from dustdevol.adaptive.imf import chab
 import dustdevol.adaptive.generic as g
 from dustdevol.adaptive.DeVis2017 import (
@@ -18,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 start = timer()
-results = evolve_4o(
+results = evolve_2o(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
@@ -47,19 +48,18 @@ results = evolve_4o(
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    1e-6,
+    1e-3,
 )
 end = timer()
 time = end - start
 
 print("Model I finished in {} seconds".format(time))
 print("Only took {} steps!".format(len(results["times"])))
-print("(out of {} attempted steps...)".format(
-    results["cache"]["attempted_steps"]))
+print("(out of {} attempted steps...)".format(results["cache"]["attempted_steps"]))
 print("Smallest step was {} Gyr".format(np.diff(results["times"]).min()))
 
 start = timer()
-results_fast = evolve_6o(
+results_fast = evolve_2o_FC(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
@@ -88,15 +88,14 @@ results_fast = evolve_6o(
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
     1,
-    1e-6,
+    1e-3,
 )
 end = timer()
 time = end - start
 
 print("Model I finished in {} seconds".format(time))
 print("Only took {} steps!".format(len(results_fast["times"])))
-print("(out of {} attempted steps...)".format(
-    results_fast["cache"]["attempted_steps"]))
+print("(out of {} attempted steps...)".format(results_fast["cache"]["attempted_steps"]))
 print("Smallest step was {} Gyr".format(np.diff(results_fast["times"]).min()))
 start = timer()
 
@@ -104,8 +103,7 @@ results_slow = e.evolve_sfr(
     g2.fp(0),
     g2.fp(13.79),
     np.append(
-        np.linspace(0.001, 0.05, 1000, endpoint=False), np.arange(
-            0.05, 20, 0.05)
+        np.linspace(0.001, 0.05, 1000, endpoint=False), np.arange(0.05, 20, 0.05)
     ),
     g2.sfr_from_file,
     i.chab,

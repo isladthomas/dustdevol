@@ -2186,7 +2186,7 @@ def evolve_6o(
 
     err_order = 5  # order of error scaling of the lower order method
     safety_factor = 0.9  # will try to keep error at this % of tolerance
-    max_increase = 5  # stepsize increases by at most this factor at one time
+    max_increase = 2  # stepsize increases by at most this factor at one time
     max_decrease = 0.5  # stepsize decreases by at most this factor at one time
 
     # Components of the butcher tableaux for the method, in short
@@ -2718,7 +2718,7 @@ def update_progress(progress):
     status = ""
     if isinstance(progress, int):
         progress = float(progress)
-    if not isinstance(progress, float):
+    if not isinstance(progress, fp):
         progress = 0
         status = "error: progress var must be float\r\n"
     if progress < 0:
