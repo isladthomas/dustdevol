@@ -14,7 +14,7 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     try:
         tau0 = cache["sn_lifetimes"]
     except KeyError:
-        cache["sn_lifetimes"] = stellar_lifetimes((0, masses))
+        cache["sn_lifetimes"] = stellar_lifetimes((fp(0), masses))
         tau0 = cache["sn_lifetimes"]
 
     if (
@@ -24,8 +24,8 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
                     (
                         clip(
                             (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
-                            0.001,
-                            0.04,
+                            fp(0.001),
+                            fp(0.04),
                         ),
                         masses,
                     )
@@ -33,20 +33,20 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
                 - tau0
             )
         ).max()
-        > 2e-3
+        > fp(2e-3)
     ):
         soln = root(
             lambda tau: stellar_lifetimes(
                 (
                     clip((metal_hist(t - tau) / gas_hist(t - tau))
-                         [:, 0], 0.001, 0.04),
+                         [:, 0], fp(0.001), fp(0.04)),
                     masses,
                 )
             )
             - tau,
             tau0,
             method="krylov",
-            options={"fatol": 2e-3},
+            options={"fatol": fp(2e-3)},
         ).x
     else:
         soln = tau0
@@ -70,9 +70,9 @@ def fast_supernova_rate(
         imf_vals = cache["sn_imf_values"]
         d_masses = cache["sn_d_masses"]
     except KeyError:
-        masses = logspace(log10(8), log10(40), 257)
+        masses = logspace(log10(8), log10(40), 257, dtype=fp)
         d_masses = diff(masses)
-        masses = masses[:-1] + (d_masses / 2)
+        masses = masses[:-1] + (d_masses / fp(2))
         imf_vals = imf(masses)
 
         cache["sn_masses"] = masses
@@ -83,7 +83,7 @@ def fast_supernova_rate(
         masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     )
 
-    d_masses = where(t > lifetimes, d_masses, 0)
+    d_masses = where(t > lifetimes, d_masses, fp(0))
 
     sfr_vals = sfr_hist(t - lifetimes)
 

@@ -24,6 +24,11 @@ def evolve_2o_FC(
     relative_tolerance,
 ):
 
+    # how small we can let the step size get before raising an error
+    # needs to be set because if step size is too small, t + dt will be
+    # identical to t due to limited precision
+    eps = 1 * np.finfo(fp).eps
+
     err_order = fp(1)  # order of error scaling of the lower order method
     safety_factor = fp(0.9)  # will try to keep error at this % of tolerance
     max_increase = fp(2)  # stepsize increases by at most this factor at one time
@@ -129,19 +134,19 @@ def evolve_2o_FC(
     # Create interpolants for the history of our galaxy
     coeffs = fp_zeros((interp_order, 1, len(init_gas)))
     coeffs[-1, :, :] = init_gas
-    gas_hist = PPoly(coeffs, [time_start - 1, time_start])
+    gas_hist = PPoly(coeffs, [time_start - fp(1), time_start])
 
     coeffs = fp_zeros((interp_order, 1, len(init_star)))
     coeffs[-1, :, :] = init_star
-    star_hist = PPoly(coeffs, [time_start - 1, time_start])
+    star_hist = PPoly(coeffs, [time_start - fp(1), time_start])
 
     coeffs = fp_zeros((interp_order, 1, len(init_metal)))
     coeffs[-1, :, :] = init_metal
-    metal_hist = PPoly(coeffs, [time_start - 1, time_start])
+    metal_hist = PPoly(coeffs, [time_start - fp(1), time_start])
 
     coeffs = fp_zeros((interp_order, 1, len(init_dust)))
     coeffs[-1, :, :] = init_dust
-    dust_hist = PPoly(coeffs, [time_start - 1, time_start])
+    dust_hist = PPoly(coeffs, [time_start - fp(1), time_start])
 
     redshift = z_at_t(t)
 
@@ -364,22 +369,22 @@ def evolve_2o_FC(
                 max_decrease,
                 min(
                     max_increase,
-                    safety_factor * (np.sqrt(1 / err) ** (1 / (err_order + 1))),
+                    safety_factor * (np.sqrt(fp(1) / err) ** (fp(1) / (err_order + fp(1)))),
                 ),
             )
 
             # if the time step becomes extremely small, errstop
             # as we can reach a point where t + dt is identical to t
             # floating point shenaniganery :/
-            if times[i + 1] - times[i] <= 1.1102230246251565e-14:
+            if times[i + 1] - times[i] <= eps:
                 raise RuntimeError(
-                    "Stepsize too small for 64-bit precision. Either increasing or decreasing tolerance can help, though increasing is more likely."
+                    "Stepsize too small for defined precision. Either increasing or decreasing tolerance can help, though increasing is more likely."
                 )
 
             # if the error is within our tolerance, accept the step
             # otherwise, restart from the first mini-step
             # (The derivs at the very start don't depend on dt)
-            if err <= 1:
+            if err <= fp(1):
                 accepted = True
 
         # If the space we've reserved for the output isn't enough,
@@ -387,18 +392,18 @@ def evolve_2o_FC(
         if i + 2 >= len(times):
 
             n = len(times)
-            times = np.append(times, np.full(n, np.inf))
-            gas_masses = np.vstack((gas_masses, fp_zeros((n, len(init_gas)))))
-            star_masses = np.vstack((star_masses, fp_zeros((n, len(init_star)))))
-            metal_masses = np.vstack((metal_masses, fp_zeros((n, len(init_metal)))))
-            dust_masses = np.vstack((dust_masses, fp_zeros((n, len(init_dust)))))
+            times = np.append(times, np.full(n, np.inf, dtype=fp))
+            gas_masses = np.vstack((gas_masses, fp_empty((n, len(init_gas)))))
+            star_masses = np.vstack((star_masses, fp_empty((n, len(init_star)))))
+            metal_masses = np.vstack((metal_masses, fp_empty((n, len(init_metal)))))
+            dust_masses = np.vstack((dust_masses, fp_empty((n, len(init_dust)))))
 
-            dgas_masses = np.vstack((dgas_masses, fp_zeros((n, len(init_gas)))))
-            dstar_masses = np.vstack((dstar_masses, fp_zeros((n, len(init_star)))))
-            dmetal_masses = np.vstack((dmetal_masses, fp_zeros((n, len(init_metal)))))
-            ddust_masses = np.vstack((ddust_masses, fp_zeros((n, len(init_dust)))))
+            dgas_masses = np.vstack((dgas_masses, fp_empty((n, len(init_gas)))))
+            dstar_masses = np.vstack((dstar_masses, fp_empty((n, len(init_star)))))
+            dmetal_masses = np.vstack((dmetal_masses, fp_empty((n, len(init_metal)))))
+            ddust_masses = np.vstack((ddust_masses, fp_empty((n, len(init_dust)))))
 
-            star_formation_rates = np.append(star_formation_rates, fp_zeros(n))
+            star_formation_rates = np.append(star_formation_rates, fp_empty(n))
 
         # set the accepted endpoint as the starting point for the next step
         t = times[i + 1]

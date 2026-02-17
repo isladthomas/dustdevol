@@ -1,3 +1,4 @@
+from dustdevol.adaptive.generic import fp, fp_array
 from numpy import (
     array,
     logspace,
@@ -19,7 +20,7 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
     in Gyr given a mass in Msol
     """
 
-    masses_half = stellar_lifetimes[:-1, 0] / 2 + stellar_lifetimes[1:, 0] / 2
+    masses_half = stellar_lifetimes[:-1, 0] / fp(2) + stellar_lifetimes[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(stellar_lifetimes[:, 0]) - 1)
 
@@ -34,8 +35,8 @@ def remnant_mass(m):
     calculates how much mass of the star remains in stellar remnants.
     """
 
-    rem_mass = where(m < 25, 1.5, 0.61 * m - 13.75)
-    rem_mass[m <= 9] = (0.106 * m + 0.446)[m <= 9]
+    rem_mass = where(m < 25, fp(1.5), fp(0.61) * m - fp(13.75))
+    rem_mass[m <= fp(9)] = (fp(0.106) * m + fp(0.446))[m <= fp(9)]
 
     return rem_mass
 
@@ -49,7 +50,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     i = searchsorted(metallicity_cutoffs, metallicity)[0]
     stepsize = len(metallicity)
 
-    masses_half = yield_table[:-1, 0] / 2 + yield_table[1:, 0] / 2
+    masses_half = yield_table[:-1, 0] / fp(2) + yield_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(yield_table[:, 0]) - 1)
     return yield_table[eff_indices, i * stepsize + 1: (i + 1) * stepsize + 1]
@@ -67,12 +68,12 @@ def fresh_dust(
     or from a fraction of the metals generated, if the star becomes a PN
     """
 
-    masses_half = eff_table[:-1, 0] / 2 + eff_table[1:, 0] / 2
+    masses_half = eff_table[:-1, 0] / fp(2) + eff_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses, side="left")
     eff_indices = clip(eff_indices, 0, len(eff_table[:, 0]) - 1)
     dust_eff = eff_table[eff_indices, 1] / reduction_factor
-    dust_eff[masses <= 8] = 0.15
-    dust_eff[masses > 40] = 0
+    dust_eff[masses <= fp(8)] = fp(0.15)
+    dust_eff[masses > fp(40)] = fp(0)
 
     return dust_eff * ejected_metals
 
@@ -136,7 +137,7 @@ def fast_ejecta(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513)
+        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -144,7 +145,7 @@ def fast_ejecta(
         d_masses = model_params["d_masses"]
 
         # switch "masses" to the midpoints, instead of left edges
-        model_params["ejecta_masses"] = masses[:-1] + (d_masses / 2)
+        model_params["ejecta_masses"] = masses[:-1] + (d_masses / fp(2))
         masses = model_params["ejecta_masses"]
 
         # calcualte imf and ejecta at midpoints
@@ -155,7 +156,7 @@ def fast_ejecta(
         ejecta = model_params["ejecta_vals"]
 
     # determine if high or low metallicity lifetimes are to be used
-    if (mmetal[0] / mgas[0]) <= 0.008:
+    if (mmetal[0] / mgas[0]) <= fp(0.008):
         metallicity = "low"
 
     else:
@@ -163,7 +164,7 @@ def fast_ejecta(
 
     lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
 
-    d_masses = where(t > lifetimes, d_masses, 0)
+    d_masses = where(t > lifetimes, d_masses, fp(0))
 
     # create arrays for historical metallicity and sfr
     z_at_birth = metal_hist(t - lifetimes) / gas_hist(t - lifetimes)
@@ -255,14 +256,14 @@ def Gauss_Kronrod_ejecta(
 
     except KeyError:
 
-        cache["ejecta_masses"] = ((sample_points_pre + 1) / 2) * (119.2) + 0.8
+        cache["ejecta_masses"] = ((sample_points_pre + fp(1)) / fp(2)) * (fp(119.2)) + fp(0.8)
         cache["ejecta_subdivisions"] = 1
         masses = cache["ejecta_masses"]
         remnants = remnant_mass(masses)
         cache["ejecta_vals"] = masses - remnants
         cache["imf_values"] = imf(masses)
-        cache["gauss_weights"] = gauss_weights_pre * 59.6
-        cache["kronrod_weights"] = kronrod_weights_pre * 59.6
+        cache["gauss_weights"] = gauss_weights_pre * fp(59.6)
+        cache["kronrod_weights"] = kronrod_weights_pre * fp(59.6)
 
         ejecta = cache["ejecta_vals"]
         imf_vals = cache["imf_values"]
@@ -270,7 +271,7 @@ def Gauss_Kronrod_ejecta(
         kronrod_weights = cache["kronrod_weights"]
 
     # determine if high or low metallicity lifetimes are to be used
-    if (mmetal[0] / mgas[0]) <= 0.008:
+    if (mmetal[0] / mgas[0]) <= fp(0.008):
         metallicity = "low"
 
     else:
@@ -280,7 +281,7 @@ def Gauss_Kronrod_ejecta(
 
         lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
 
-        imf_vals = where(t > lifetimes, imf_vals, 0)
+        imf_vals = where(t > lifetimes, imf_vals, fp(0))
 
         # create arrays for historical metallicity and sfr
         z_at_birth = metal_hist(t - lifetimes) / gas_hist(t - lifetimes)
@@ -327,17 +328,17 @@ def Gauss_Kronrod_ejecta(
         err_dust = abs(ejected_dust_k - ejected_dust_g)
 
         err = hstack((err_gas, err_metal, err_dust)) / (
-            1
-            + 1e-3
+            fp(1)
+            + fp(1e-3)
             * maximum(
                 hstack((ejected_gas_k, ejected_metal_k, ejected_dust_k)),
                 hstack((ejected_gas_g, ejected_metal_g, ejected_dust_g)),
             )
         )
 
-        err = sqrt((err**2).mean())
+        err = sqrt((err**fp(2)).mean())
 
-        if err <= 1 or err != err:
+        if err <= fp(1) or err != err:
             try:
                 cache["integral_accuracy"][t] = cache["ejecta_subdivisions"]
             except KeyError:
@@ -350,7 +351,7 @@ def Gauss_Kronrod_ejecta(
             cache["ejecta_subdivisions"] *= 2
             ints = cache["ejecta_subdivisions"]
 
-            mesh = array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
+            mesh = fp_array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
 
             cache["ejecta_masses"] = []
             cache["gauss_weights"] = []
@@ -368,9 +369,9 @@ def Gauss_Kronrod_ejecta(
                     kronrod_weights_pre * (mesh[i + 1] - mesh[i]) / 2
                 )
 
-            cache["ejecta_masses"] = array(cache["ejecta_masses"])
-            cache["gauss_weights"] = array(cache["gauss_weights"])
-            cache["kronrod_weights"] = array(cache["kronrod_weights"])
+            cache["ejecta_masses"] = fp_array(cache["ejecta_masses"])
+            cache["gauss_weights"] = fp_array(cache["gauss_weights"])
+            cache["kronrod_weights"] = fp_array(cache["kronrod_weights"])
 
             masses = cache["ejecta_masses"]
             remnants = remnant_mass(masses)
@@ -449,7 +450,7 @@ kronrod_weights_pre = array(
 
 # Sample points and weights for 61-point Gauss-Kronrod integration.
 # Based on integrating on [-1,1], needs to be rescaled to new bounds
-sample_points_pre = array(
+sample_points_pre = fp_array(
     [
         -9.994844100504906375713258957058108e-01,
         -9.968934840746495402716300509186953e-01,

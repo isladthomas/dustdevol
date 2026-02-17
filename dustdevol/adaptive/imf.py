@@ -1,4 +1,5 @@
 import numpy as np
+from dustdevol.adaptive.generic import fp, fp_array, fp_empty, fp_zeros
 import scipy.interpolate as interpolate
 from scipy.integrate import quad as integrate
 
@@ -23,11 +24,13 @@ def normalize_imf(imf, lower_m, upper_m):
 # while this has units of 1 / Msolar^2
 def bad_chab(m):
     if m <= 1.0:
-        imf = np.exp(-1.0 * (np.log10(m) + 1.1023729)
-                     * (np.log10(m) + 1.1023729))
-        imf = (0.85 * imf) / 0.952199 / m
+        imf = np.exp(
+            fp(-1.0) * (np.log10(m) + fp(1.1023729)) *
+            (np.log10(m) + fp(1.1023729))
+        )
+        imf = (fp(0.85) * imf) / fp(0.952199) / m
     else:
-        imf = 0.24 * (m**-1.3) / m
+        imf = fp(0.24) * (m ** -fp(1.3)) / m
     return imf
 
 
@@ -44,10 +47,13 @@ def interp_chab(lower, upper, n, k):
 def chab(m):
 
     imf = np.where(
-        m <= 1.0,
-        0.158 * np.exp(-((np.log10(m) - np.log10(0.079))
-                       ** 2) / (2 * 0.69**2)),
-        0.0443 * (m ** (-1.3)),
+        m <= fp(1.0),
+        fp(0.158)
+        * np.exp(
+            -((np.log10(m) - np.log10(fp(0.079))) ** fp(2))
+            / (fp(2) * fp(0.69) ** fp(2))
+        ),
+        fp(0.0443) * (m ** (fp(-1.3))),
     )
-    imf = imf / (m * np.log(10))
-    return imf / 0.0815731452799614
+    imf = imf / (m * np.log(fp(10)))
+    return imf / fp(0.0815731452799614)

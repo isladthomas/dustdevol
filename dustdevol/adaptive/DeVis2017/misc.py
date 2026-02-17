@@ -8,7 +8,7 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
     in Gyr given a mass in Msol
     """
 
-    masses_half = stellar_lifetimes[:-1, 0] / 2 + stellar_lifetimes[1:, 0] / 2
+    masses_half = stellar_lifetimes[:-1, 0] / fp(2) + stellar_lifetimes[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(stellar_lifetimes[:, 0]) - 1)
 
@@ -26,23 +26,23 @@ def supernova_rate(sfr, imf, sfr_hist, t, stellar_lifetimes):
     """
 
     # set up integral over mass
-    sn_rate = 0
-    dm = 0.01
+    sn_rate = fp(0)
+    dm = fp(0.01)
 
     # find the least massive star that could have been born and died
     # during the sim so far, clamped at 8 Msol (cutoff for SN)
     m = mass_from_life(t, stellar_lifetimes, "low")
-    m = max(8, m)
+    m = max(fp(8), m)
 
     # integrate over imf between 8 and 40 msol, to find number of supernovae
     # per solar mass of stars formed. At 10 Msol, increase step size
-    while m < 10.0:
+    while m < fp(10.0):
         sn_rate += imf(m) * dm
         m += dm
 
-    dm = 0.5
+    dm = fp(0.5)
 
-    while m < 40.0:
+    while m < fp(40.0):
         sn_rate += imf(m) * dm
         m += dm
 
@@ -64,16 +64,16 @@ def fast_supernova_rate(imf, sfr_hist, t, stellar_lifetimes, metallicity_float, 
         imf_vals = cache["sn_imf_values"]
         d_masses = cache["sn_d_masses"]
     except KeyError:
-        masses = logspace(log10(8), log10(40), 257)
+        masses = logspace(log10(8), log10(40), 257, dtype=fp)
         d_masses = diff(masses)
-        masses = masses[:-1] + (d_masses / 2)
+        masses = masses[:-1] + (d_masses / fp(2))
         imf_vals = imf(masses)
 
         cache["sn_masses"] = masses
         cache["sn_imf_values"] = imf_vals
         cache["sn_d_masses"] = d_masses
 
-    if metallicity_float <= 0.008:
+    if metallicity_float <= fp(0.008):
         metallicity = "low"
 
     else:
@@ -81,7 +81,7 @@ def fast_supernova_rate(imf, sfr_hist, t, stellar_lifetimes, metallicity_float, 
 
     lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
 
-    d_masses = where(t > lifetimes, d_masses, 0)
+    d_masses = where(t > lifetimes, d_masses, fp(0))
 
     sfr_vals = sfr_hist(t - lifetimes)
 
@@ -106,7 +106,7 @@ def mass_from_life(t, stellar_lifetimes, metallicity):
     # if the difference is negative, then the lifetime of such a star is
     # longer than the requested lifetime, so send those off, and *then* find
     # the closest value
-    arg = where(diffs > 0, diffs, fp("inf")).argmin()
+    arg = where(diffs > fp(0), diffs, fp("inf")).argmin()
 
     return stellar_lifetimes[arg, 0]
 

@@ -1,4 +1,5 @@
 from dustdevol.adaptive.BEDE2 import fast_supernova_rate
+from dustdevol.adaptive.generic import fp
 
 
 def fast_dust_destruction(
@@ -49,7 +50,7 @@ def fast_dust_destruction(
     t_des = destruction_timescale(
         model_params["sn_destruction"], mgas, sn_rate)
 
-    mdust_des = mdust * (1 - model_params["cold_fraction"]) * t_des**-1
+    mdust_des = mdust * (fp(1) - model_params["cold_fraction"]) * t_des**fp(-1)
 
     return mdust_des
 

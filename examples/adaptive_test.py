@@ -59,6 +59,7 @@ print("(out of {} attempted steps...)".format(results["cache"]["attempted_steps"
 print("Smallest step was {} Gyr".format(np.diff(results["times"]).min()))
 
 start = timer()
+breakpoint()
 results_fast = evolve_2o_FC(
     g.fp(0),
     g.fp(13.79),
@@ -70,25 +71,25 @@ results_fast = evolve_2o_FC(
     grain_growth,
     bede.fast_dust_destruction,
     bede.fast_ejecta,
-    [4e10],
-    [0],
-    [0, 0],
-    [0],
+    g.fp_array([4e10]),
+    g.fp_array([0]),
+    g.fp_array([0, 0]),
+    g.fp_array([0]),
     {
         "sfr_file": "Milkyway_2017.sfh",
-        "sn_dust_reduction": 1,
-        "sn_destruction": 0,
-        "inflow_xSFR": 0,
-        "outflow_xSFR": 0,
-        "cold_fraction": 0.5,
-        "grain_growth_epsilon": 0,
+        "sn_dust_reduction": g.fp(1),
+        "sn_destruction": g.fp(0),
+        "inflow_xSFR": g.fp(0),
+        "outflow_xSFR": g.fp(0),
+        "cold_fraction": g.fp(0.5),
+        "grain_growth_epsilon": g.fp(0),
         "stellar_lifetimes": g.stellar_lifetimes,
         "dust_yields": g.TF01,
         "metal_yields": g.vdHG97_M92_yields,
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
     },
-    1,
-    1e-3,
+    g.fp(1),
+    g.fp(1e-3),
 )
 end = timer()
 time = end - start

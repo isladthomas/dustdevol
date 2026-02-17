@@ -3,6 +3,12 @@ from astropy.cosmology import Planck13
 from scipy import interpolate
 
 # define working precision
+# NOTE: Due to the way scipy.interpolate.PPoly works, there's no point setting
+# this other than np.float64. The interpolate functions always use np.float64
+# internally, and will not be sped up by switching this to float16 or float32
+# and will actually throw an error if set to np.float128, as the extend()
+# method will change the internal rep to float128, and it will errstop
+# the next time it is evaluated.
 fp = np.float64
 
 
@@ -24,15 +30,16 @@ def fp_empty(shape):
 # create a function which takes in time values and calculates
 # the redshift at that time, assuming cosmological parameters
 # from the Planck 2013 study
-redshift_lookups = np.flip(np.concatenate(([0], np.logspace(-3, 3, 511))))
-t_lookups = Planck13.age(redshift_lookups).value
+redshift_lookups = np.flip(np.concatenate(
+    ([fp(0)], np.logspace(-3, 3, 511, dtype=fp))))
+t_lookups = fp_array(Planck13.age(redshift_lookups).value)
 z_at_t = interpolate.make_interp_spline(t_lookups, redshift_lookups, k=3)
 
 
 # stand in for any of the gas/metal/dust evolution functions
 # which just returns zeros, turning off that aspect of the model
 def off(*args):
-    return 0, 0, 0
+    return fp(0), fp(0), fp(0)
 
 
 # reads sfh from a file, interpolating using either a user specified
@@ -57,7 +64,7 @@ def sfr_from_file(
         return cache["sfr_interp"]([t])[0]
     except KeyError:
         vals = np.loadtxt(model_params["sfr_file"], dtype=fp)
-        vals *= [1e-9, 1e9]
+        vals *= fp_array([1e-9, 1e9])
         cache["sfr_interp"] = interpolate.CubicSpline(vals[:, 0], vals[:, 1])
         return cache["sfr_interp"]([t])[0]
 
@@ -65,7 +72,7 @@ def sfr_from_file(
 # stellar lifetime table according to Schaller et. al 1992
 # First column is initial mass in Msol, second is lifetime
 # in Gyr at Z = 0.001 and third is lifetime at Z = 0.02
-S92 = np.array(
+S92 = fp_array(
     (
         (0.8, 15.0, 26.0),
         (0.9, 9.5, 15.0),
@@ -87,12 +94,13 @@ S92 = np.array(
 )
 
 
-S92S93_Z = np.array((0.001, 0.008, 0.02, 0.04))
-S92S93_M = np.array(
-    (0.8, 0.9, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0, 12.0, 20.0, 40.0, 60.0, 85.0, 120.0)
+S92S93_Z = fp_array((0.001, 0.008, 0.02, 0.04))
+S92S93_M = fp_array(
+    (0.8, 0.9, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0,
+     7.0, 12.0, 20.0, 40.0, 60.0, 85.0, 120.0)
 )
 
-S92S93 = np.array(
+S92S93 = fp_array(
     (
         (
             1.524235e10,
@@ -168,7 +176,7 @@ S92S93 = np.array(
 
 stellar_lifetimes = interpolate.RegularGridInterpolator(
     (S92S93_Z, S92S93_M),
-    S92S93 * 1e-9,
+    S92S93 * fp(1e-9),
     method="cubic",
     bounds_error=False,
     fill_value=None,
@@ -176,7 +184,7 @@ stellar_lifetimes = interpolate.RegularGridInterpolator(
 
 
 # SN dust production table according to Todini and Ferrara 2001
-TF01 = np.array(
+TF01 = fp_array(
     (
         (8.5, 0),
         (9, 0.7674),
@@ -197,10 +205,12 @@ TF01 = np.array(
 # only yields from stellar winds are considered for m > 40
 # as what would be considered "supernova ejecta," while still
 # calculable for these stars, will be trapped in a black hole
-vdHG97_M92_yields = np.array(
+vdHG97_M92_yields = fp_array(
     (
-        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07, 6.147e-05, 2.565e-05, 0, -3.483e-05),
-        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05, 0.000112, 5.36e-05, 0.00161, 0.000981),
+        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07,
+         6.147e-05, 2.565e-05, 0, -3.483e-05),
+        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05,
+         0.000112, 5.36e-05, 0.00161, 0.000981),
         (
             1.3,
             0.004017,
@@ -278,7 +288,8 @@ vdHG97_M92_yields = np.array(
             0.02496,
             -0.000864,
         ),
-        (5.0, 0.0386, 0.00206, 0.03535, 0.001285, 0.03295, 0.00033, 0.0314, -0.001455),
+        (5.0, 0.0386, 0.00206, 0.03535, 0.001285,
+         0.03295, 0.00033, 0.0314, -0.001455),
         (
             7.0,
             0.06727,
@@ -312,11 +323,10 @@ vdHG97_M92_yields = np.array(
         (85, 0, 0, 0, 0, 17.75, 3.37, 17.75, 3.37),
         (120, 0, 0, 0, 0, 9.39, -0.13, 9.39, -0.13),
     ),
-    dtype=fp,
 )
 
 # metallicity cutoffs for the previous yield table
 # Z < 0.0025 means use the first set, z < 0.006 use the second, etc.
-vdHG97_M92_cutoffs = np.array((0.0025, 0.006, 0.01, np.inf))
+vdHG97_M92_cutoffs = fp_array((0.0025, 0.006, 0.01, np.inf))
 
 #

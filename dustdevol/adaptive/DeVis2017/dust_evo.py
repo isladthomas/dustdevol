@@ -1,4 +1,4 @@
-from dustdevol.adaptive.generic import fp_zeros
+from dustdevol.adaptive.generic import fp, fp_zeros
 from dustdevol.adaptive.DeVis2017 import supernova_rate, fast_supernova_rate
 
 
@@ -42,8 +42,8 @@ def grain_growth(
     mdust_gg = (
         mdust
         * model_params["cold_fraction"]
-        * (1.0 - (mdust / mmetal[0]))
-        * time_gg**-1
+        * (fp(1) - (mdust / mmetal[0]))
+        * time_gg**fp(-1)
     )
 
     # if 0/0 occurs, which only happens if there's no dust or metals,
@@ -109,7 +109,7 @@ def dust_destruction(
     t_des = destruction_timescale(
         model_params["sn_destruction"], mgas, sn_rate)
 
-    mdust_des = mdust * (1 - model_params["cold_fraction"]) * t_des**-1
+    mdust_des = mdust * (fp(1) - model_params["cold_fraction"]) * t_des**fp(-1)
 
     return mdust_des
 
@@ -156,7 +156,7 @@ def fast_dust_destruction(
     t_des = destruction_timescale(
         model_params["sn_destruction"], mgas, sn_rate)
 
-    mdust_des = mdust * (1 - model_params["cold_fraction"]) * t_des**-1
+    mdust_des = mdust * (fp(1) - model_params["cold_fraction"]) * t_des**fp(-1)
 
     return mdust_des
 

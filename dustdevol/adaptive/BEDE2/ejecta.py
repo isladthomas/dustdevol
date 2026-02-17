@@ -1,3 +1,4 @@
+from dustdevol.adaptive.generic import fp, fp_array
 from numpy import (
     logspace,
     where,
@@ -21,7 +22,7 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     try:
         tau0 = cache["ejecta_lifetimes"]
     except KeyError:
-        cache["ejecta_lifetimes"] = stellar_lifetimes((0, masses))
+        cache["ejecta_lifetimes"] = stellar_lifetimes((fp(0), masses))
         tau0 = cache["ejecta_lifetimes"]
 
     if (
@@ -31,8 +32,8 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
                     (
                         clip(
                             (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
-                            0.001,
-                            0.04,
+                            fp(0.001),
+                            fp(0.04),
                         ),
                         masses,
                     )
@@ -40,25 +41,27 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
                 - tau0
             )
         ).max()
-        > 2e-3
+        > fp(2e-3)
     ):
         soln = root(
             lambda tau: stellar_lifetimes(
                 (
                     clip((metal_hist(t - tau) / gas_hist(t - tau))
-                         [:, 0], 0.001, 0.04),
+                         [:, 0], fp(0.001), fp(0.04)),
                     masses,
                 )
             )
             - tau,
             tau0,
             method="krylov",
-            options={"fatol": 2e-3},
+            options={"fatol": fp(2e-3)},
         ).x
     else:
         soln = tau0
 
     cache["ejecta_lifetimes"] = soln
+
+    # breakpoint()
 
     return soln
 
@@ -68,8 +71,8 @@ def remnant_mass(m):
     calculates how much mass of the star remains in stellar remnants.
     """
 
-    rem_mass = where(m < 25, 1.5, 0.61 * m - 13.75)
-    rem_mass[m <= 9] = (0.106 * m + 0.446)[m <= 9]
+    rem_mass = where(m < fp(25), fp(1.5), fp(0.61) * m - fp(13.75))
+    rem_mass[m <= fp(9)] = (fp(0.106) * m + fp(0.446))[m <= fp(9)]
 
     return rem_mass
 
@@ -83,7 +86,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     i = searchsorted(metallicity_cutoffs, metallicity)[0]
     stepsize = len(metallicity)
 
-    masses_half = yield_table[:-1, 0] / 2 + yield_table[1:, 0] / 2
+    masses_half = yield_table[:-1, 0] / fp(2) + yield_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(yield_table[:, 0]) - 1)
     return yield_table[eff_indices, i * stepsize + 1: (i + 1) * stepsize + 1]
@@ -101,12 +104,12 @@ def fresh_dust(
     or from a fraction of the metals generated, if the star becomes a PN
     """
 
-    masses_half = eff_table[:-1, 0] / 2 + eff_table[1:, 0] / 2
+    masses_half = eff_table[:-1, 0] / fp(2) + eff_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses, side="left")
     eff_indices = clip(eff_indices, 0, len(eff_table[:, 0]) - 1)
     dust_eff = eff_table[eff_indices, 1] / reduction_factor
-    dust_eff[masses <= 8] = 0.15
-    dust_eff[masses > 40] = 0
+    dust_eff[masses <= fp(8)] = fp(0.15)
+    dust_eff[masses > fp(40)] = fp(0)
 
     return dust_eff * ejected_metals
 
@@ -170,7 +173,7 @@ def fast_ejecta(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513)
+        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -178,7 +181,7 @@ def fast_ejecta(
         d_masses = model_params["d_masses"]
 
         # switch "masses" to the midpoints, instead of left edges
-        model_params["ejecta_masses"] = masses[:-1] + (d_masses / 2)
+        model_params["ejecta_masses"] = masses[:-1] + (d_masses / fp(2))
         masses = model_params["ejecta_masses"]
 
         # calcualte imf and ejecta at midpoints
@@ -193,7 +196,7 @@ def fast_ejecta(
         masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     )
 
-    d_masses = where(t > lifetimes, d_masses, 0)
+    d_masses = where(t > lifetimes, d_masses, fp(0))
 
     # create arrays for historical metallicity and sfr
     z_at_birth = metal_hist(t - lifetimes) / gas_hist(t - lifetimes)
