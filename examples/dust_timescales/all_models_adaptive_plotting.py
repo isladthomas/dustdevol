@@ -10,7 +10,7 @@ timescales = ["Mattson", "Bad DeVis", "DeVis",
 
 for title in titles:
     for model in models:
-        with load("outputs/Model_{}_{}_gg.npz".format(title, model)) as data:
+        with load("outputs/Model_{}_{}_gg_birth_metallicity.npz".format(title, model)) as data:
             plt.figure(1)
             plt.plot(
                 data["times"],
@@ -132,7 +132,7 @@ for title in titles:
     plt.xlabel("Time (Gyr)")
     plt.yscale("log")
     plt.legend(efficiencies)
-    plt.savefig("plots/Model_" + title + "_gg_eff.eps")
+    plt.savefig("plots/Model_" + title + "_gg_eff_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(2)
@@ -142,7 +142,7 @@ for title in titles:
     plt.xlabel("Time (Gyr)")
     plt.yscale("log")
     plt.legend(timescales)
-    plt.savefig("plots/Model_" + title + "_gg_time.eps")
+    plt.savefig("plots/Model_" + title + "_gg_time_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(3)
@@ -153,7 +153,7 @@ for title in titles:
     plt.yscale("log")
     plt.gca().xaxis.set_inverted(True)
     plt.legend(efficiencies)
-    plt.savefig("plots/Model_" + title + "_gg_eff_gas_frac.eps")
+    plt.savefig("plots/Model_" + title + "_gg_eff_gas_frac_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(4)
@@ -164,7 +164,7 @@ for title in titles:
     plt.yscale("log")
     plt.gca().xaxis.set_inverted(True)
     plt.legend(timescales)
-    plt.savefig("plots/Model_" + title + "_gg_time_gas_frac.eps")
+    plt.savefig("plots/Model_" + title + "_gg_time_gas_frac_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(5)
@@ -175,7 +175,7 @@ for title in titles:
     plt.yscale("log")
     plt.xscale("log")
     plt.legend(efficiencies)
-    plt.savefig("plots/Model_" + title + "_gg_eff_metallicity.eps")
+    plt.savefig("plots/Model_" + title + "_gg_eff_metallicity_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(6)
@@ -186,7 +186,7 @@ for title in titles:
     plt.yscale("log")
     plt.xscale("log")
     plt.legend(timescales)
-    plt.savefig("plots/Model_" + title + "_gg_time_metallicity.eps")
+    plt.savefig("plots/Model_" + title + "_gg_time_metallicity_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(7)
@@ -196,7 +196,7 @@ for title in titles:
     plt.xlabel("12 + log(O/H)")
     plt.yscale("log")
     plt.legend(efficiencies)
-    plt.savefig("plots/Model_" + title + "_gg_eff_logOH.eps")
+    plt.savefig("plots/Model_" + title + "_gg_eff_logOH_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(8)
@@ -205,8 +205,9 @@ for title in titles:
     plt.ylabel("Timescale (Gyr Msol / Msol)")
     plt.xlabel("12 + log(O/H)")
     plt.yscale("log")
+    plt.xlim([4, 10])
     plt.legend(timescales)
-    plt.savefig("plots/Model_" + title + "_gg_time_logOH.eps")
+    plt.savefig("plots/Model_" + title + "_gg_time_logOH_birth_metallicity.eps")
     plt.clf()
 
     plt.figure(9)
@@ -216,5 +217,5 @@ for title in titles:
     plt.xlabel("Time (Gyr)")
     plt.yscale("log")
     plt.legend(efficiencies)
-    plt.savefig("plots/Model_" + title + "_gg_timesteps.eps")
+    plt.savefig("plots/Model_" + title + "_gg_timesteps_birth_metallicity.eps")
     plt.clf()

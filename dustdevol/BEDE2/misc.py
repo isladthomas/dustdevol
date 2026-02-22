@@ -1,5 +1,5 @@
-from numpy import where, logspace, log10, vectorize, diff, searchsorted, clip
-from dustdevol.adaptive.generic import fp, fp_zeros
+from numpy import where, logspace, log10, diff, clip
+from dustdevol.generic import fp
 from scipy.optimize import root
 
 
@@ -9,6 +9,31 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     tau_f(Z(t - tau), m) - tau = 0
     for tau, taking into account the metallicity *at birth* for
     stars of mass m
+
+    Parameters
+    ----------
+    masses : array_like
+             list of masses to find lifetimes for
+    metal_hist : function(float) -> (m,)
+                 function which takes in a time and outputs the metal mass at
+                 that time
+    gas_hist : function(float) -> (g,)
+               function which takes in a time and outputs the gas mass at
+               that time
+    stellar_lifetimes : function(ndarray, ndarray) -> ndarray
+                        function which takes in an array of metallicities and
+                        and array of initial masses, and outputs the lifetime
+                        for that combination.
+    t : float
+        current time
+    cache : dict
+            dustdevol cache
+
+    Returns
+    -------
+    out : ndarray
+          Array of the same shape as `masses` with corresponding stellar
+          lifetime.
     """
 
     try:
@@ -56,13 +81,34 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     return soln
 
 
-def fast_supernova_rate(
-    imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, metallicity, cache
+def supernova_rate(
+    imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, cache
 ):
     """
-    calculate rate of supernova events in SN / Gyr, assuming stars
-    that go supernova have a short enough lifespan to be born and die
-    in a single timestep (30-50 Myr)
+    Calculate rate of supernova events in SN/Gyr, ignoring Type Ia SN using
+    the "metallicity at death" approximation for finding lifetimes.
+
+    Parameters
+    ----------
+    imf : function(ndarray) -> ndarray
+          function which takes in an array of progenitor masses and spits out
+          IMF values at that mass.
+    sfr_hist : function(ndarray) -> ndarray
+               function which takes in array of times and gives the sfr at
+               that time
+    t : float
+        current time in the galacy
+    stellar_lifetimes : 2D array
+                        stellar lifetime table, fed to `life_from_mass_vec`
+    metallicity_float : float
+                        galaxy's current metallicity
+    cache : dict
+            cache for the dustdevol code
+
+    Returns
+    -------
+    out : float
+          supernova rate in SN/Gyr
     """
 
     try:

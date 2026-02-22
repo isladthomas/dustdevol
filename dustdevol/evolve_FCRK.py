@@ -1,7 +1,17 @@
-import numpy as np
-from dustdevol.adaptive.generic import fp, fp_zeros, fp_empty, fp_array, z_at_t
-from scipy.interpolate import CubicHermiteSpline, CubicSpline, PPoly
-import sys
+from numpy import (
+    finfo,
+    ceil,
+    inf,
+    tensordot,
+    append,
+    hstack,
+    vstack,
+    maximum,
+    sqrt,
+)
+from dustdevol.generic import fp, fp_zeros, fp_empty, fp_array, fp_full, z_at_t
+from scipy.interpolate import CubicSpline, PPoly
+from sys import stdout
 
 
 def evolve_2o_FC(
@@ -23,25 +33,99 @@ def evolve_2o_FC(
     absolute_tolerance,
     relative_tolerance,
 ):
+    """Abstract Method for evolving a chem-evol model using user-specified models for
+    inflows, outflows, recycling, grain growth, dust destruction, and stellar ejecta.
+    Uses 2nd order Functional Continuous Runge-Kutta with an embedded 1st order FCRK
+    for error estimation and step-size selection, both methods taken from Tavernini 71
+
+    Parameters
+    ----------
+    time_start : float
+                 Starting time for the simulation.
+    time_end : float
+               End time for the simulation.
+    sfr_model : function(dict, float, float, 4*ndarray, 4*function, dict) -> (s,)
+                Model which outputs the sfr when passed model_params, current time,
+                redshift, current gas, star, metal and dust masses, function to get
+                previous gas, star, metal and dust masses, and the model cache.
+    imf : function(float) -> float
+          Function which gives the proportion of stars formed in the mass interval
+          m + dm.
+    inflow_model : function(dict, float, float, 4*ndarray, 5*function, dict) -> ((g,),(m,),(d,))
+                   Model which outputs the amount of gas, metals, and dust gained from inflows
+                   when given all the parameters of sfr_model, as well as a function giving
+                   previous sfr.
+    outflow_model : function(dict, float, float, 4*ndarray, 5*function, dict) -> ((g,),(m,),(d,))
+                    Model which outputs the amount of gas, metals, and dust lost to outflows
+                    when given all parameters of inflow_model.
+    recycling_model : function(dict, float, float, 4*ndarray, 5*function, dict) -> ((g,),(m,),(d,))
+                      Model which gives the amount of gas, metals, and dust regained due to
+                      outflow recycling.
+    grain_growth_model : function(dict, float, float, 4*ndarray, 5*function, dict) -> (d,)
+                         Model which gives the amount of dust gained due to grain growth.
+    dust_destruction_model : function(dict, float, float, 4*ndarray, 5*function, dict) -> (d,)
+                             Model which gives the amount of dust destroyed via processes like
+                             SNe shockwaves and photofragmentation.
+    ejecta_model : function(dict, float, float, 4*ndarray, 5*function, dict) -> ((g,),(m,),(d,))
+                   Model which gives the amount of gas, metals, and dust produced
+                   from dying stars.
+    init_gas : (g,)
+               ndarray representing the various gas populations. Interpretation depends on
+               Models used.
+    init_star : (s,)
+                ndarray representing the various stellar populations. Interpretation depends
+                on Models used.
+    init_metal : (m,)
+                 ndarray representing the various metal populations. Interpretation depends
+                 on Models used.
+    init_dust : (d,)
+                ndarray representing the various dust populations. Interpretation depends
+                on Models used.
+    model_params : dict
+                   Dictionary containing assorted parameters for the various models.
+    absolute_tolerance : float
+                         Constant term used to scale error. Roughly, the error tolerance will
+                         be at least this much, regardless of how small the values are.
+                         Must be nonzero, regardless of relative_tolerance, or else
+                         error will be NaN if any component is zero.
+    relative_tolerance : float
+                         Term used to scale error that scales with the size of each component.
+                         multiplied by the maximum of the current and proposed values.
+
+    Returns
+    -------
+    out : dict
+          dictionary providing all results, including times visited,
+          calculated values and derivatives for gas, stars, metals, dust,
+          and sfr (no derivatives), interpolants for these values, as well
+          as the cache.
+    """
 
     # how small we can let the step size get before raising an error
     # needs to be set because if step size is too small, t + dt will be
     # identical to t due to limited precision
-    eps = 1 * np.finfo(fp).eps
+    # this will raise an error anyway, but might as well give more info
+    # as to why
+    eps = 100 * finfo(fp).eps
 
     err_order = fp(1)  # order of error scaling of the lower order method
     safety_factor = fp(0.9)  # will try to keep error at this % of tolerance
-    max_increase = fp(2)  # stepsize increases by at most this factor at one time
-    max_decrease = fp(0.5)  # stepsize decreases by at most this factor at one time
+    # stepsize increases by at most this factor in one timestep
+    max_increase = fp(2)
+    # stepsize decreases by at most this factor in one timestep
+    max_decrease = fp(0.5)
 
     # Components of the butcher tableaux for the method, in short
     # each row of tableuax_a defines a stage of the method, and what
     # combination of derivs from each stage to use for that stage
+    # expanded to polynomials in the time along the step, normalized to
+    # [0,1], to allow interpolation at each stage
     # must be strictly lower triangular
     # each component of tableaux_c tells what multiple of the stepsize to use
     # for the time of that stage
     # each component of tableaux_b defines the weight with which the deriv from
     # that stage contributes to the final answer to be propagated
+    # again expanded to polynomials in (Functional) Continuous Runge-Kutta
     # each component of tableaux_d defines the weight with which the deriv from
     # that stage contributes to error estimate
     tableaux_a = fp_array((((0, 0, 0), (0, 0, 0)), ((0, 1, 0), (0, 0, 0))))
@@ -55,15 +139,11 @@ def evolve_2o_FC(
     # the time step.
     # TODO: More sophisticated first step choice
     dt = fp(0.003)
-    steps_guess = int(np.ceil((time_end - time_start) / dt))
+    steps_guess = int(ceil((time_end - time_start) / dt))
 
-    # Create arrays to store all outputs
-    # The derivatives are needed to create hermite interpolants for the output
-    # so we can get a good guess as to outputs even where our sim doesn't visit
-    # Hermite int. has error order O(h^4), while our method only has O(h^2),
-    # so not really any extra error introduced by interpolating.
+    # Create arrays to store all outputs, including derivatives
     times = fp_empty(steps_guess)
-    times[:] = np.inf
+    times[:] = inf
     gas_masses = fp_empty((steps_guess, len(init_gas)))
     star_masses = fp_empty((steps_guess, len(init_star)))
     metal_masses = fp_empty((steps_guess, len(init_metal)))
@@ -131,36 +211,44 @@ def evolve_2o_FC(
     i = 0
     cache = {}
 
-    # Create interpolants for the history of our galaxy
+    # Initialize interpolants for the history of our galaxy
+    # assuming all masses held constant for 1 Gyr before time_start
+    # exact values for this part don't really matter, ideally these values
+    # aren't even used, but the polynomial must be constructed for the main
+    # loop to work.
     coeffs = fp_zeros((interp_order, 1, len(init_gas)))
     coeffs[-1, :, :] = init_gas
-    gas_hist = PPoly(coeffs, [time_start - fp(1), time_start])
+    gas_hist = PPoly(coeffs, [time_start - 1, time_start])
 
     coeffs = fp_zeros((interp_order, 1, len(init_star)))
     coeffs[-1, :, :] = init_star
-    star_hist = PPoly(coeffs, [time_start - fp(1), time_start])
+    star_hist = PPoly(coeffs, [time_start - 1, time_start])
 
     coeffs = fp_zeros((interp_order, 1, len(init_metal)))
     coeffs[-1, :, :] = init_metal
-    metal_hist = PPoly(coeffs, [time_start - fp(1), time_start])
+    metal_hist = PPoly(coeffs, [time_start - 1, time_start])
 
     coeffs = fp_zeros((interp_order, 1, len(init_dust)))
     coeffs[-1, :, :] = init_dust
-    dust_hist = PPoly(coeffs, [time_start - fp(1), time_start])
+    dust_hist = PPoly(coeffs, [time_start - 1, time_start])
 
     redshift = z_at_t(t)
 
     interp = [gas_hist, star_hist, metal_hist, dust_hist, None]
 
+    # We don't have good derivative estimates for the sfr so it is
+    # constructed through Cubic Hermite Spline interpolation
+    # however contructing a spline who's values won't be used is wasteful
+    # so we just make a quick function that returns the starting sfr
     sfr = sfr_model(model_params, t, redshift, *y, *interp[:-1], cache)
 
     star_formation_rates[0] = sfr
 
     def sfr_hist(t):
         if hasattr(t, "__len__"):
-            return np.array([sfr] * len(t))
+            return fp_array([sfr] * len(t))
         else:
-            return np.array(sfr)
+            return fp_array(sfr)
 
     interp[-1] = sfr_hist
 
@@ -172,13 +260,18 @@ def evolve_2o_FC(
 
     while t < time_end:
 
+        # stage 0 only needs to be computed once, so if a step is rejected,
+        # restart at stage 1
         restart_point = 0
         accepted = False
 
         while not accepted:
 
+            # dividing factor which normalizes the polynomial argument to be
+            # [0,1] on the interval [t, t+dt], divided by dt
             theta_stretch = fp_array(
-                [[dt ** (interp_order - k - 2)] for k in range(interp_order - 1)]
+                [[dt ** (interp_order - k - 2)]
+                 for k in range(interp_order - 1)]
             )
 
             for j in range(restart_point, stages):
@@ -207,21 +300,27 @@ def evolve_2o_FC(
                 else:
 
                     gas_hist.c[:-1, -1] = (
-                        np.tensordot(tableaux_a[j], dmgas_int, axes=[[0], [0]])[:-1]
-                         / theta_stretch
+                        tensordot(tableaux_a[j], dmgas_int,
+                                  axes=[[0], [0]])[:-1]
+                        / theta_stretch
                     )
                     star_hist.c[:-1, -1] = (
-                        np.tensordot(tableaux_a[j], dmstar_int, axes=[[0], [0]])[:-1]
-                         / theta_stretch
+                        tensordot(tableaux_a[j], dmstar_int,
+                                  axes=[[0], [0]])[:-1]
+                        / theta_stretch
                     )
                     metal_hist.c[:-1, -1] = (
-                        np.tensordot(tableaux_a[j], dmmetal_int, axes=[[0], [0]])[:-1]
+                        tensordot(tableaux_a[j], dmmetal_int,
+                                  axes=[[0], [0]])[:-1]
                         / theta_stretch
                     )
                     dust_hist.c[:-1, -1] = (
-                        np.tensordot(tableaux_a[j], dmdust_int, axes=[[0], [0]])[:-1]
+                        tensordot(tableaux_a[j], dmdust_int,
+                                  axes=[[0], [0]])[:-1]
                         / theta_stretch
                     )
+                    # if a step is rejected, reset the interpolants to
+                    # the new step size.
                     gas_hist.x[-1] = t + dt
                     star_hist.x[-1] = t + dt
                     metal_hist.x[-1] = t + dt
@@ -230,15 +329,17 @@ def evolve_2o_FC(
                     redshift = z_at_t(t + step)
 
                     sfr = sfr_model(
-                        model_params, t + step, redshift, *y, *interp[:-1], cache
+                        model_params, t + step, redshift, *
+                        y, *interp[:-1], cache
                     )
 
                     sfr_hist = CubicSpline(
-                        np.append(times[: i + 1], t + step),
-                        np.append(star_formation_rates[: i + 1], sfr),
+                        append(times[: i + 1], t + step),
+                        append(star_formation_rates[: i + 1], sfr),
                     )
 
-                    interp = [gas_hist, star_hist, metal_hist, dust_hist, sfr_hist]
+                    interp = [gas_hist, star_hist,
+                              metal_hist, dust_hist, sfr_hist]
 
                 # find out where our mini-step takes place
                 mgas_int[j] = gas_hist(t + step)
@@ -315,24 +416,24 @@ def evolve_2o_FC(
                     star_formation_rates[i] = sfr
 
             # Using a linear comb of derivs at the current time and
-            # our mini step, get both a prediction for the next timestep
+            # our mini step, get a prediction for the next timestep,
+            # an interpolant to use in future timesteps,
             # and an estimate for the error on this timestep.
-
             gas_hist.c[:-1, -1] = (
-                np.tensordot(tableaux_b, dmgas_int, axes=[[0], [0]])[:-1]
-                / theta_stretch
+                tensordot(tableaux_b, dmgas_int, axes=[[0], [0]])[
+                    :-1] / theta_stretch
             )
             star_hist.c[:-1, -1] = (
-                np.tensordot(tableaux_b, dmstar_int, axes=[[0], [0]])[:-1]
-                / theta_stretch
+                tensordot(tableaux_b, dmstar_int, axes=[
+                          [0], [0]])[:-1] / theta_stretch
             )
             star_hist.c[:-1, -1] = (
-                np.tensordot(tableaux_b, dmstar_int, axes=[[0], [0]])[:-1]
-                / theta_stretch
+                tensordot(tableaux_b, dmstar_int, axes=[
+                          [0], [0]])[:-1] / theta_stretch
             )
             star_hist.c[:-1, -1] = (
-                np.tensordot(tableaux_b, dmstar_int, axes=[[0], [0]])[:-1]
-                / theta_stretch
+                tensordot(tableaux_b, dmstar_int, axes=[
+                          [0], [0]])[:-1] / theta_stretch
             )
 
             mgas_fin = gas_hist(t + dt)
@@ -340,23 +441,28 @@ def evolve_2o_FC(
             mmetal_fin = metal_hist(t + dt)
             mdust_fin = dust_hist(t + dt)
 
-            err_gas = abs((dmgas_int.transpose() * tableaux_d * dt).sum(axis=1))
-            err_star = abs((dmstar_int.transpose() * tableaux_d * dt).sum(axis=1))
-            err_metal = abs((dmmetal_int.transpose() * tableaux_d * dt).sum(axis=1))
-            err_dust = abs((dmdust_int.transpose() * tableaux_d * dt).sum(axis=1))
+            err_gas = abs(
+                (dmgas_int.transpose() * tableaux_d * dt).sum(axis=1))
+            err_star = abs((dmstar_int.transpose() *
+                           tableaux_d * dt).sum(axis=1))
+            err_metal = abs((dmmetal_int.transpose() *
+                            tableaux_d * dt).sum(axis=1))
+            err_dust = abs((dmdust_int.transpose() *
+                           tableaux_d * dt).sum(axis=1))
 
             # Condense the errors into one RMS error value, weighted inversely
             # by the tolerance in that component (abs + rel)
-            err = np.hstack((err_gas, err_star, err_metal, err_dust)) / (
+            err = hstack((err_gas, err_star, err_metal, err_dust)) / (
                 fp(absolute_tolerance)
                 + fp(relative_tolerance)
-                * np.maximum(
-                    np.hstack((mgas_fin, mstar_fin, mmetal_fin, mdust_fin)),
-                    np.hstack((mgas_int[0], mstar_int[0], mmetal_int[0], mdust_int[0])),
+                * maximum(
+                    hstack((mgas_fin, mstar_fin, mmetal_fin, mdust_fin)),
+                    hstack((mgas_int[0], mstar_int[0],
+                           mmetal_int[0], mdust_int[0])),
                 )
             )
 
-            err = np.sqrt((err**2).mean())
+            err = sqrt((err**2).mean())
 
             times[i + 1] = t + dt
 
@@ -369,7 +475,7 @@ def evolve_2o_FC(
                 max_decrease,
                 min(
                     max_increase,
-                    safety_factor * (np.sqrt(fp(1) / err) ** (fp(1) / (err_order + fp(1)))),
+                    safety_factor * (sqrt(1 / err) ** (1 / (err_order + 1))),
                 ),
             )
 
@@ -384,7 +490,7 @@ def evolve_2o_FC(
             # if the error is within our tolerance, accept the step
             # otherwise, restart from the first mini-step
             # (The derivs at the very start don't depend on dt)
-            if err <= fp(1):
+            if err <= 1:
                 accepted = True
 
         # If the space we've reserved for the output isn't enough,
@@ -392,18 +498,22 @@ def evolve_2o_FC(
         if i + 2 >= len(times):
 
             n = len(times)
-            times = np.append(times, np.full(n, np.inf, dtype=fp))
-            gas_masses = np.vstack((gas_masses, fp_empty((n, len(init_gas)))))
-            star_masses = np.vstack((star_masses, fp_empty((n, len(init_star)))))
-            metal_masses = np.vstack((metal_masses, fp_empty((n, len(init_metal)))))
-            dust_masses = np.vstack((dust_masses, fp_empty((n, len(init_dust)))))
+            times = append(times, fp_full(n, inf))
+            gas_masses = vstack((gas_masses, fp_empty((n, len(init_gas)))))
+            star_masses = vstack((star_masses, fp_empty((n, len(init_star)))))
+            metal_masses = vstack(
+                (metal_masses, fp_empty((n, len(init_metal)))))
+            dust_masses = vstack((dust_masses, fp_empty((n, len(init_dust)))))
 
-            dgas_masses = np.vstack((dgas_masses, fp_empty((n, len(init_gas)))))
-            dstar_masses = np.vstack((dstar_masses, fp_empty((n, len(init_star)))))
-            dmetal_masses = np.vstack((dmetal_masses, fp_empty((n, len(init_metal)))))
-            ddust_masses = np.vstack((ddust_masses, fp_empty((n, len(init_dust)))))
+            dgas_masses = vstack((dgas_masses, fp_empty((n, len(init_gas)))))
+            dstar_masses = vstack(
+                (dstar_masses, fp_empty((n, len(init_star)))))
+            dmetal_masses = vstack(
+                (dmetal_masses, fp_empty((n, len(init_metal)))))
+            ddust_masses = vstack(
+                (ddust_masses, fp_empty((n, len(init_dust)))))
 
-            star_formation_rates = np.append(star_formation_rates, fp_empty(n))
+            star_formation_rates = append(star_formation_rates, fp_empty(n))
 
         # set the accepted endpoint as the starting point for the next step
         t = times[i + 1]
@@ -495,7 +605,7 @@ def evolve_2o_FC(
 
     # any part of the array that hasn't been filled in
     # gets discarded
-    to_keep = times != np.inf
+    to_keep = times != inf
 
     # package everything up into the results array
     results = {
@@ -508,7 +618,12 @@ def evolve_2o_FC(
         "dstar_masses": dstar_masses[to_keep],
         "dmetal_masses": dmetal_masses[to_keep],
         "ddust_masses": ddust_masses[to_keep],
+        "gas_func": gas_hist,
+        "star_func": star_hist,
+        "metal_func": metal_hist,
+        "dust_func": dust_hist,
         "sfr": star_formation_rates[to_keep],
+        "sfr_func": sfr_hist,
         "cache": cache,
     }
 
@@ -517,8 +632,17 @@ def evolve_2o_FC(
 
 def update_progress(progress):
     """
-    from user Brian Khuu on stack exchange, displays a nice little
+    From user Brian Khuu on stack exchange, displays a nice little
     progress bar.
+
+    Parameters
+    ----------
+    progress : int or float
+               Amount of progress, between 0 and 1.
+
+    Returns
+    -------
+    out : None
     """
     barLength = 50  # Modify this to change the length of the progress bar
     status = ""
@@ -537,5 +661,5 @@ def update_progress(progress):
     text = "\rPercent: [{0}] {1:.0f}% {2}".format(
         "█" * block + "-" * (barLength - block), progress * 100, status
     )
-    sys.stdout.write(text)
-    sys.stdout.flush()
+    stdout.write(text)
+    stdout.flush()

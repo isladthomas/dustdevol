@@ -1,44 +1,118 @@
-from numpy import where
-from dustdevol.generic import fp, fp_zeros
+from numpy import where, logspace, log10, diff, searchsorted, clip
+from dustdevol.adaptive.generic import fp, fp_zeros
 
-def supernova_rate(sfr, imf, times, i, stellar_lifetimes):
+
+def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
     """
-    calculate rate of supernova events in SN / Gyr, assuming stars
-    that go supernova have a short enough lifespan to be born and die
-    in a single timestep (30-50 Myr)
+    Helper function which uses 0-order interpolation to find the lifetime
+    in Gyr given a mass in Msol
+
+    Parameters
+    ----------
+    masses : array_like
+             list of masses to find lifetimes for
+    stellar_lifetimes : 2D array
+                        Array containing, in it's first column, a list of
+                        star masses, second, their lifetimes at low
+                        metallicities, and the third, lifetimes at high
+                        metallicities.
+    metallicity : str
+                  str that reads "high" if high metallicity lifetimes are to
+                  be used, and anything else if low values should be used.
+
+    Returns
+    -------
+    out : ndarray
+          Array of the same shape as `masses` with corresponding stellar
+          lifetime.
     """
 
-    # set up integral over mass
-    sn_rate = 0
-    dm = 0.01
+    masses_half = stellar_lifetimes[:-1, 0] / \
+        fp(2) + stellar_lifetimes[1:, 0] / fp(2)
+    eff_indices = searchsorted(masses_half, masses)
+    eff_indices = clip(eff_indices, 0, len(stellar_lifetimes[:, 0]) - 1)
 
-    # find the least massive star that could have been born and died
-    # during the sim so far, clamped at 8 Msol (cutoff for SN)
-    m = mass_from_life(times[i], stellar_lifetimes, "low")
-    m = max(8, m)
+    if metallicity == "high":
+        return stellar_lifetimes[eff_indices, 2]
+    else:
+        return stellar_lifetimes[eff_indices, 1]
 
-    # integrate over imf between 8 and 40 msol, to find number of supernovae
-    # per solar mass of stars formed. At 10 Msol, increase step size
-    while m < 10.0:
-        sn_rate += imf(m) * dm
-        m += dm
 
-    dm = 0.5
+def supernova_rate(imf, sfr_hist, t, stellar_lifetimes, metallicity_float, cache):
+    """
+    Calculate rate of supernova events in SN/Gyr, ignoring Type Ia SN using
+    the "metallicity at death" approximation for finding lifetimes.
 
-    while m < 40.0:
-        sn_rate += imf(m) * dm
-        m += dm
+    Parameters
+    ----------
+    imf : function(ndarray) -> ndarray
+          function which takes in an array of progenitor masses and spits out
+          IMF values at that mass.
+    sfr_hist : function(ndarray) -> ndarray
+               function which takes in array of times and gives the sfr at
+               that time
+    t : float
+        current time in the galacy
+    stellar_lifetimes : 2D array
+                        stellar lifetime table, fed to `life_from_mass_vec`
+    metallicity_float : float
+                        galaxy's current metallicity
+    cache : dict
+            cache for the dustdevol code
 
-    # multiply by sfr to get final rate
-    sn_rate = sfr[i] * sn_rate
+    Returns
+    -------
+    out : float
+          supernova rate in SN/Gyr
+    """
+
+    try:
+        masses = cache["sn_masses"]
+        imf_vals = cache["sn_imf_values"]
+        d_masses = cache["sn_d_masses"]
+    except KeyError:
+        masses = logspace(log10(8), log10(40), 257, dtype=fp)
+        d_masses = diff(masses)
+        masses = masses[:-1] + (d_masses / fp(2))
+        imf_vals = imf(masses)
+
+        cache["sn_masses"] = masses
+        cache["sn_imf_values"] = imf_vals
+        cache["sn_d_masses"] = d_masses
+
+    if metallicity_float <= fp(0.008):
+        metallicity = "low"
+
+    else:
+        metallicity = "high"
+
+    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
+
+    d_masses = where(t > lifetimes, d_masses, fp(0))
+
+    sfr_vals = sfr_hist(t - lifetimes)
+
+    sn_rate = (imf_vals * d_masses * sfr_vals).sum()
 
     return sn_rate
 
 
 def mass_from_life(t, stellar_lifetimes, metallicity):
     """
-    helper function which uses 0-order interpolation to find the
+    Helper function which uses 0-order interpolation to find the
     mass in Msol of a star with (at most) a given lifetime in Gyr
+
+    Paramters
+    ---------
+    t : float
+        current galaxy lifetime
+    stellar_lifetimes : 2D array
+                        Array containing, in it's first column, a list of
+                        star masses, second, their lifetimes at low
+                        metallicities, and the third, lifetimes at high
+                        metallicities.
+    metallicity : float
+                  current metallicity of galaxy
     """
 
     # find diff between requested lifetime and lifetime of each mass
@@ -51,15 +125,34 @@ def mass_from_life(t, stellar_lifetimes, metallicity):
     # if the difference is negative, then the lifetime of such a star is
     # longer than the requested lifetime, so send those off, and *then* find
     # the closest value
-    arg = where(diffs > 0, diffs, fp("inf")).argmin()
+    arg = where(diffs > fp(0), diffs, fp("inf")).argmin()
 
     return stellar_lifetimes[arg, 0]
 
 
 def life_from_mass(m, stellar_lifetimes, metallicity):
     """
-    helper function which uses 0-order interpolation to find the lifetime
-    in Gyr given a mass in Msol
+    Helper function which uses 0-order interpolation to find the lifetime
+    in Gyr given a mass in Msol. Not vectorized, for multiple masses, or just
+    in general, please use `life_from_mass_vec`
+
+    Parameters
+    ----------
+    masses : float
+             masses to find lifetime for
+    stellar_lifetimes : 2D array
+                        Array containing, in it's first column, a list of
+                        star masses, second, their lifetimes at low
+                        metallicities, and the third, lifetimes at high
+                        metallicities.
+    metallicity : str
+                  str that reads "high" if high metallicity lifetimes are to
+                  be used, and anything else if low values should be used.
+
+    Returns
+    -------
+    out : float
+          stellar lifetime for star of mass `m`
     """
 
     arg = (abs(stellar_lifetimes[:, 0] - m)).argmin()
@@ -71,11 +164,30 @@ def life_from_mass(m, stellar_lifetimes, metallicity):
         return stellar_lifetimes[arg, 1]
 
 
-def xSFR_inflow(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust):
+def xSFR_inflow(
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
+):
     """
     calculate gas inflow, and try to calculate metal and dust,
     if inflow metal and dust frac are not specified, assume 0
-    requires:
+
+    Paramters
+    ---------
+    model_params : dict
         - \"inflow_xSFR\": multiple of SFR to calculate inflows
                            should have same shape as init_gas
     optional:
@@ -83,9 +195,14 @@ def xSFR_inflow(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal,
                             should have same shape as init_metal
         - \"inflow_dust\": fraction of inflows in the form of dust
                            should have same shape as init_dust
+
+    Returns
+    -------
+    out : (g,), (m,), (d,)
+          gas, metals, and dust gained from inflows in Msol/Gyr
     """
 
-    gas_inflow = sfr[i] * model_params["inflow_xSFR"]
+    gas_inflow = sfr * model_params["inflow_xSFR"]
 
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
@@ -105,12 +222,29 @@ def xSFR_inflow(model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal,
 
 
 def xSFR_outflow(
-    model_params, sfr, imf, times, i, redshift, mgas, mstar, mmetal, mdust
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
 ):
     """
-    calculate gas inflow, and try to calculate metal and dust,
+    Calculate gas inflow, and try to calculate metal and dust,
     if inflow metal and dust frac are not specified, assume 0
-    requires:
+
+    Parameters
+    ----------
+    model_params : dict
         - \"inflow_xSFR\": multiple of SFR to calculate inflows
                            should have same shape as init_gas
     optional:
@@ -118,20 +252,27 @@ def xSFR_outflow(
                             should have same shape as init_metal
         - \"inflow_dust\": fraction of inflows in the form of dust
                            should have same shape as init_dust
+
+    Returns
+    -------
+    out : (g,), (m,), (d,)
+          Gas, metal, and dust lost (positive) to outflows
     """
 
-    gas_outflow = sfr[i] * model_params["outflow_xSFR"]
+    gas_outflow = sfr * model_params["outflow_xSFR"]
 
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
     try:
-        metal_outflow = (mmetal / mgas[0]) * gas_outflow * model_params["outflow_metal"]
+        metal_outflow = (mmetal / mgas[0]) * \
+            gas_outflow * model_params["outflow_metal"]
     except KeyError:
         model_params["outflow_metal"] = fp_zeros(len(mmetal))
         metal_outflow = fp_zeros(len(mmetal))
 
     try:
-        dust_outflow = (mdust / mgas[0]) * gas_outflow * model_params["outflow_dust"]
+        dust_outflow = (mdust / mgas[0]) * \
+            gas_outflow * model_params["outflow_dust"]
     except KeyError:
         model_params["outflow_dust"] = fp_zeros(len(mdust))
         dust_outflow = fp_zeros(len(mdust))

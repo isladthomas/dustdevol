@@ -1,11 +1,13 @@
-from dustdevol.adaptive.evolve import evolve_2o
-from dustdevol.adaptive.imf import chab
-import dustdevol.adaptive.generic as g
-from dustdevol.adaptive.DeVis2017 import (
+from dustdevol.evolve_FCRK import evolve_2o_FC
+from dustdevol.imf import chab
+import dustdevol.generic as g
+from dustdevol.BEDE2 import (
+    dust_destruction,
+    stellar_ejecta,
+)
+from dustdevol.DeVis2017 import (
     xSFR_inflow,
     xSFR_outflow,
-    dust_destruction,
-    fast_ejecta,
 )
 from numpy import (
     maximum,
@@ -368,7 +370,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -381,7 +383,7 @@ inits_Mattson = [
             "outflow_xSFR": 0,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 0,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -399,7 +401,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -412,7 +414,7 @@ inits_Mattson = [
             "outflow_xSFR": 0,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 0,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -430,7 +432,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -445,7 +447,7 @@ inits_Mattson = [
             "outflow_dust": 1,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 0,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -463,7 +465,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -478,7 +480,7 @@ inits_Mattson = [
             "outflow_dust": 1,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 700,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -496,7 +498,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -511,7 +513,7 @@ inits_Mattson = [
             "outflow_dust": 1,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 5000,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -529,7 +531,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -544,7 +546,7 @@ inits_Mattson = [
             "outflow_dust": 1,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 8000,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -562,7 +564,7 @@ inits_Mattson = [
         "recycling_model": g.off,
         "grain_growth_model": Mattson_gg,
         "destruction_model": dust_destruction,
-        "ejecta_model": fast_ejecta,
+        "ejecta_model": stellar_ejecta,
         "init_gas": [4e10],
         "init_star": [0],
         "init_metal": [0, 0],
@@ -577,7 +579,7 @@ inits_Mattson = [
             "outflow_dust": 1,
             "cold_fraction": 0.5,
             "grain_growth_epsilon": 12000,
-            "stellar_lifetimes": g.S92,
+            "stellar_lifetimes": g.stellar_lifetimes,
             "dust_yields": g.TF01,
             "metal_yields": g.vdHG97_M92_yields,
             "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
@@ -617,7 +619,7 @@ for title, models in zip(titles[3:], inits[3:]):
 
     for i, model in enumerate(models):
         print("Working on Model {} with {} gg".format(title, legend[i]))
-        results = evolve_2o(**model)
+        results = evolve_2o_FC(**model)
         if legend[i] == "BEDE":
             output = {
                 "times": results["times"],
@@ -669,4 +671,7 @@ for title, models in zip(titles[3:], inits[3:]):
                 )[:, None],
             }
         savez_compressed(
-            "outputs/Model_{}_{}_gg".format(title, legend[i]), **output)
+            "outputs/Model_{}_{}_gg_birth_metallicity".format(
+                title, legend[i]),
+            **output
+        )

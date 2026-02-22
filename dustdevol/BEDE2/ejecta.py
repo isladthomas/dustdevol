@@ -1,4 +1,4 @@
-from dustdevol.adaptive.generic import fp, fp_array
+from dustdevol.generic import fp
 from numpy import (
     logspace,
     where,
@@ -8,7 +8,6 @@ from numpy import (
     clip,
 )
 from scipy.optimize import root
-from timeit import default_timer as timer
 
 
 def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache):
@@ -17,6 +16,31 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     tau_f(Z(t - tau), m) - tau = 0
     for tau, taking into account the metallicity *at birth* for
     stars of mass m
+
+    Parameters
+    ----------
+    masses : array_like
+             list of masses to find lifetimes for
+    metal_hist : function(float) -> (m,)
+                 function which takes in a time and outputs the metal mass at
+                 that time
+    gas_hist : function(float) -> (g,)
+               function which takes in a time and outputs the gas mass at
+               that time
+    stellar_lifetimes : function(ndarray, ndarray) -> ndarray
+                        function which takes in an array of metallicities and
+                        and array of initial masses, and outputs the lifetime
+                        for that combination.
+    t : float
+        current time
+    cache : dict
+            dustdevol cache
+
+    Returns
+    -------
+    out : ndarray
+          Array of the same shape as `masses` with corresponding stellar
+          lifetime.
     """
 
     try:
@@ -25,29 +49,29 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
         cache["ejecta_lifetimes"] = stellar_lifetimes((fp(0), masses))
         tau0 = cache["ejecta_lifetimes"]
 
-    if (
-        abs(
-            (
-                stellar_lifetimes(
-                    (
-                        clip(
-                            (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
-                            fp(0.001),
-                            fp(0.04),
-                        ),
-                        masses,
-                    )
+    if abs(
+        (
+            stellar_lifetimes(
+                (
+                    clip(
+                        (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
+                        fp(0.001),
+                        fp(0.04),
+                    ),
+                    masses,
                 )
-                - tau0
             )
-        ).max()
-        > fp(2e-3)
-    ):
+            - tau0
+        )
+    ).max() > fp(2e-3):
         soln = root(
             lambda tau: stellar_lifetimes(
                 (
-                    clip((metal_hist(t - tau) / gas_hist(t - tau))
-                         [:, 0], fp(0.001), fp(0.04)),
+                    clip(
+                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                        fp(0.001),
+                        fp(0.04),
+                    ),
                     masses,
                 )
             )
@@ -68,7 +92,18 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
 
 def remnant_mass(m):
     """
-    calculates how much mass of the star remains in stellar remnants.
+    Calculates how much mass of the star remains in stellar remnants using
+    the prescription of Ferreras and Silk 2000
+
+    Parameters
+    ----------
+    m : ndarray
+        masses for which the remnant mass is to be calculated
+
+    Returns
+    -------
+    out: ndarray
+         remnant masses in Msol for the stars
     """
 
     rem_mass = where(m < fp(25), fp(1.5), fp(0.61) * m - fp(13.75))
@@ -79,8 +114,27 @@ def remnant_mass(m):
 
 def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     """
-    nab the amount of metals generated in the death of a star of mass m
+    Nab the amount of metals generated in the death of a star of mass m
     from the yield table
+
+    Parameters
+    ----------
+    yield_table : 2D array
+                  array with the first column containing masses, with
+                  subsequent columns being the metal yields for progressiely
+                  higher metallicities.
+    metallicity_cutoffs : 1D array
+                          list of cutoff values for the metal yield table
+    masses : array_like
+             masses for which the fresh metal yields are to be evaluated
+    metallicity : float
+                  current metallicity
+
+    Returns
+    -------
+    out : ndarray
+          array with the shape of `masses` but with an additional dimension,
+          giving the metal yield from stars of the corresponding mass.
     """
 
     i = searchsorted(metallicity_cutoffs, metallicity)[0]
@@ -99,9 +153,29 @@ def fresh_dust(
     masses,
 ):
     """
-    nab the amount of dust generated in the death of a star of mass m,
-    either from the yield table, if the star goes supernova,
-    or from a fraction of the metals generated, if the star becomes a PN
+    Nab the amount of dust generated in the death of a star of mass m,
+    either from a yield table given in % of metals, if the star goes SN,
+    or assuming a constant fraction of 15% if not. Assumes zero dust from
+    black hole progenitors, assumed to be all stars with initial mass above
+    40 Msol.
+
+    Parameters
+    ----------
+    eff_table : 2D array
+                2D array where first column gives list of masses and second
+                gives dust formation efficieny
+    ejected_metals : array_like, shape (m,)
+                     array of metals ejected from the death of star of mass
+                     corresponding to those in `masses`
+    reduction_factor : float
+                       constant factor to divide SN dust by
+    masses : array_like, shape(m,)
+             array of progenitor masses to find the dust output of
+
+    Results
+    -------
+    out : ndarray, shape (m,)
+          array of dust output from stars of each mass.
     """
 
     masses_half = eff_table[:-1, 0] / fp(2) + eff_table[1:, 0] / fp(2)
@@ -114,7 +188,7 @@ def fresh_dust(
     return dust_eff * ejected_metals
 
 
-def fast_ejecta(
+def stellar_ejecta(
     model_params,
     sfr,
     imf,
@@ -132,11 +206,14 @@ def fast_ejecta(
     cache,
 ):
     """
-    calculate the gas, metals, and dust emmitted from dying stars, given
+    Calculate the gas, metals, and dust emmitted from dying stars, given
     a function for mass of stellar remnants as well as output tables for
     metal and dust yields. In essence, convolves the past SFR with the IMF
     and a yield function to find how much gas/metal/dust is beind shot out now
-    requires:
+
+    Parameters
+    ----------
+    model_params : dict
         - \"dust_yields\": table where each row gives a mass in Msol, and the
                            dust *created*, not recycled, when such a star dies
         - \"metal_yields\": table where each row gives a mass in Msol, followed
@@ -151,8 +228,11 @@ def fast_ejecta(
                                  of such a star in Gyrs in a low metallicity
                                  (Z < 0.008) environment, and the lifetime in
                                  a high metallicity (Z >= 0.008) environment
-    NOTE: does modify model_params, storing an additional value with key
-    \"z_history\", which allows the function to access historical metallicities
+
+    Results
+    -------
+    out : (g,), (m,), (d,)
+          gas, metals, and dust ejected from dying stars in Msol/Gyr
     """
 
     # store all model params for easier passing to subroutines
@@ -173,7 +253,8 @@ def fast_ejecta(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
+        model_params["ejecta_masses"] = logspace(
+            log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = model_params["ejecta_masses"]

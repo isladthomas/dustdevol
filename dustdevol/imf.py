@@ -1,51 +1,63 @@
-import numpy as np
-import scipy.interpolate as interpolate
-from scipy.integrate import quad as integrate
+from numpy import exp, log10, where, log
+from dustdevol.generic import fp
 
 
-# helper function to allow for normalizing any of the below
-# imfs for a different mass range than 0.1 to 100
-def normalize_imf(imf, lower_m, upper_m):
-    norm = integrate(lambda m: m * imf(m), lower_m, upper_m)
+def BEDE_chab(m):
+    """Chabrier IMF used in De Vis 2017 and BEDE (De Vis 2020),
+    normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 100,
+    and erroneously missing the sigma term in the log-normal region
 
-    def inner(m):
-        return imf(m) / norm
+    Parameters
+    ----------
+        m : (m,)
+            ndarray of masses
 
-    return inner
-
-
-# NOTE: Double Check Things!
-# IMF for the galactic disk and young clusters,
-# proposed in Chabrier 2003, normalized so that
-# int(m * imf) from 0.1 to 100 is 1
-# though I think something's wrong, because units
-# are diff too. Original Chab is number density / Msolar
-# while this has units of 1 / Msolar^2
-def bad_chab(m):
+    Returns
+    -------
+        vals : (m,)
+               ndarray corresponding to values of the imf at each of the
+               given masses.
+    """
     if m <= 1.0:
-        imf = np.exp(-1.0 * (np.log10(m) + 1.1023729)
-                     * (np.log10(m) + 1.1023729))
+        imf = exp(-1.0 * (log10(m) + 1.1023729) * (log10(m) + 1.1023729))
         imf = (0.85 * imf) / 0.952199 / m
     else:
         imf = 0.24 * (m**-1.3) / m
     return imf
 
 
-# version of the above function, except it interpolates
-def interp_chab(lower, upper, n, k):
-    masses = np.linspace(lower, upper, n)
-    imfs = np.vectorize(chab)(masses)
-    interp = interpolate.make_interp_spline(masses, imfs, k=k)
-    return interp
+a_exp = fp(0.158)
+central_mass = fp(0.079)
+sigma = fp(0.69)
+
+a_pow = fp(0.0443)
+pow = fp(1.3)
+
+norm = fp(0.0815731452799614)
 
 
 # This is what I get by directly copying the chab function from Rowlands 2014
 # and then normalizing to 1 from 0.1 to 120
 def chab(m):
-    if m <= 1.0:
-        imf = 0.158 * \
-            np.exp(-((np.log10(m) - np.log10(0.079)) ** 2) / (2 * 0.69**2))
-    else:
-        imf = 0.0443 * (m ** (-1.3))
-    imf = imf / (m * np.log(10))
-    return imf / 0.0815731452799614
+    """Disk IMF for single objects as defined by Chabrier 2003,
+    normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
+
+    Parameters
+    ----------
+        m : (m,)
+            ndarray of masses
+
+    Returns
+    -------
+        out : (m,)
+               ndarray corresponding to values of the imf at each of the
+               given masses.
+    """
+
+    imf = where(
+        m <= 1.0,
+        a_exp * exp(-((log10(m) - log10(central_mass)) ** 2) / (2 * sigma**2)),
+        a_pow * (m ** (-pow)),
+    )
+    imf = imf / (m * log(10))
+    return imf / norm

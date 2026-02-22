@@ -4,7 +4,6 @@ from numpy import (
     logspace,
     where,
     diff,
-    vectorize,
     log10,
     searchsorted,
     clip,
@@ -16,11 +15,31 @@ from numpy import (
 
 def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
     """
-    helper function which uses 0-order interpolation to find the lifetime
+    Helper function which uses 0-order interpolation to find the lifetime
     in Gyr given a mass in Msol
+
+    Parameters
+    ----------
+    masses : array_like
+             list of masses to find lifetimes for
+    stellar_lifetimes : 2D array
+                        Array containing, in it's first column, a list of
+                        star masses, second, their lifetimes at low
+                        metallicities, and the third, lifetimes at high
+                        metallicities.
+    metallicity : str
+                  str that reads "high" if high metallicity lifetimes are to
+                  be used, and anything else if low values should be used.
+
+    Returns
+    -------
+    out : ndarray
+          Array of the same shape as `masses` with corresponding stellar
+          lifetime.
     """
 
-    masses_half = stellar_lifetimes[:-1, 0] / fp(2) + stellar_lifetimes[1:, 0] / fp(2)
+    masses_half = stellar_lifetimes[:-1, 0] / \
+        fp(2) + stellar_lifetimes[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(stellar_lifetimes[:, 0]) - 1)
 
@@ -32,7 +51,18 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
 
 def remnant_mass(m):
     """
-    calculates how much mass of the star remains in stellar remnants.
+    Calculates how much mass of the star remains in stellar remnants using
+    the prescription of Ferreras and Silk 2000
+
+    Parameters
+    ----------
+    m : ndarray
+        masses for which the remnant mass is to be calculated
+
+    Returns
+    -------
+    out: ndarray
+         remnant masses in Msol for the stars
     """
 
     rem_mass = where(m < 25, fp(1.5), fp(0.61) * m - fp(13.75))
@@ -43,8 +73,27 @@ def remnant_mass(m):
 
 def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     """
-    nab the amount of metals generated in the death of a star of mass m
+    Nab the amount of metals generated in the death of a star of mass m
     from the yield table
+
+    Parameters
+    ----------
+    yield_table : 2D array
+                  array with the first column containing masses, with
+                  subsequent columns being the metal yields for progressiely
+                  higher metallicities.
+    metallicity_cutoffs : 1D array
+                          list of cutoff values for the metal yield table
+    masses : array_like
+             masses for which the fresh metal yields are to be evaluated
+    metallicity : float
+                  current metallicity
+
+    Returns
+    -------
+    out : ndarray
+          array with the shape of `masses` but with an additional dimension,
+          giving the metal yield from stars of the corresponding mass.
     """
 
     i = searchsorted(metallicity_cutoffs, metallicity)[0]
@@ -63,9 +112,29 @@ def fresh_dust(
     masses,
 ):
     """
-    nab the amount of dust generated in the death of a star of mass m,
-    either from the yield table, if the star goes supernova,
-    or from a fraction of the metals generated, if the star becomes a PN
+    Nab the amount of dust generated in the death of a star of mass m,
+    either from a yield table given in % of metals, if the star goes SN,
+    or assuming a constant fraction of 15% if not. Assumes zero dust from
+    black hole progenitors, assumed to be all stars with initial mass above
+    40 Msol.
+
+    Parameters
+    ----------
+    eff_table : 2D array
+                2D array where first column gives list of masses and second
+                gives dust formation efficieny
+    ejected_metals : array_like, shape (m,)
+                     array of metals ejected from the death of star of mass
+                     corresponding to those in `masses`
+    reduction_factor : float
+                       constant factor to divide SN dust by
+    masses : array_like, shape(m,)
+             array of progenitor masses to find the dust output of
+
+    Results
+    -------
+    out : ndarray, shape (m,)
+          array of dust output from stars of each mass.
     """
 
     masses_half = eff_table[:-1, 0] / fp(2) + eff_table[1:, 0] / fp(2)
@@ -78,7 +147,7 @@ def fresh_dust(
     return dust_eff * ejected_metals
 
 
-def fast_ejecta(
+def stellar_ejecta(
     model_params,
     sfr,
     imf,
@@ -96,11 +165,14 @@ def fast_ejecta(
     cache,
 ):
     """
-    calculate the gas, metals, and dust emmitted from dying stars, given
+    Calculate the gas, metals, and dust emmitted from dying stars, given
     a function for mass of stellar remnants as well as output tables for
     metal and dust yields. In essence, convolves the past SFR with the IMF
     and a yield function to find how much gas/metal/dust is beind shot out now
-    requires:
+
+    Parameters
+    ----------
+    model_params : dict
         - \"dust_yields\": table where each row gives a mass in Msol, and the
                            dust *created*, not recycled, when such a star dies
         - \"metal_yields\": table where each row gives a mass in Msol, followed
@@ -115,8 +187,11 @@ def fast_ejecta(
                                  of such a star in Gyrs in a low metallicity
                                  (Z < 0.008) environment, and the lifetime in
                                  a high metallicity (Z >= 0.008) environment
-    NOTE: does modify model_params, storing an additional value with key
-    \"z_history\", which allows the function to access historical metallicities
+
+    Results
+    -------
+    out : (g,), (m,), (d,)
+          gas, metals, and dust ejected from dying stars in Msol/Gyr
     """
 
     # store all model params for easier passing to subroutines
@@ -137,7 +212,8 @@ def fast_ejecta(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
+        model_params["ejecta_masses"] = logspace(
+            log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -196,7 +272,7 @@ def fast_ejecta(
     return ejected_gas, ejected_metal, ejected_dust
 
 
-def Gauss_Kronrod_ejecta(
+def GK_ejecta(
     model_params,
     sfr,
     imf,
@@ -214,11 +290,16 @@ def Gauss_Kronrod_ejecta(
     cache,
 ):
     """
-    calculate the gas, metals, and dust emmitted from dying stars, given
+    Calculate the gas, metals, and dust emmitted from dying stars, given
     a function for mass of stellar remnants as well as output tables for
     metal and dust yields. In essence, convolves the past SFR with the IMF
     and a yield function to find how much gas/metal/dust is beind shot out now
-    requires:
+    Uses Gauss-Kronrod integration to (ideally) lower the workload and also
+    give an error estimate. If the error is too high, subdivides interval.
+
+    Parameters
+    ----------
+    model_params : dict
         - \"dust_yields\": table where each row gives a mass in Msol, and the
                            dust *created*, not recycled, when such a star dies
         - \"metal_yields\": table where each row gives a mass in Msol, followed
@@ -233,8 +314,11 @@ def Gauss_Kronrod_ejecta(
                                  of such a star in Gyrs in a low metallicity
                                  (Z < 0.008) environment, and the lifetime in
                                  a high metallicity (Z >= 0.008) environment
-    Uses Gauss-Kronrod integration to (ideally) lower the workload and also
-    give an error estimate. If the error is too high, subdivides interval.
+
+    Results
+    -------
+    out : (g,), (m,), (d,)
+          gas, metals, and dust ejected from dying stars in Msol/Gyr
     """
 
     # store all model params for easier passing to subroutines
@@ -256,7 +340,9 @@ def Gauss_Kronrod_ejecta(
 
     except KeyError:
 
-        cache["ejecta_masses"] = ((sample_points_pre + fp(1)) / fp(2)) * (fp(119.2)) + fp(0.8)
+        cache["ejecta_masses"] = ((sample_points_pre + fp(1)) / fp(2)) * (
+            fp(119.2)
+        ) + fp(0.8)
         cache["ejecta_subdivisions"] = 1
         masses = cache["ejecta_masses"]
         remnants = remnant_mass(masses)
@@ -336,7 +422,7 @@ def Gauss_Kronrod_ejecta(
             )
         )
 
-        err = sqrt((err**fp(2)).mean())
+        err = sqrt((err ** fp(2)).mean())
 
         if err <= fp(1) or err != err:
             try:
@@ -351,7 +437,8 @@ def Gauss_Kronrod_ejecta(
             cache["ejecta_subdivisions"] *= 2
             ints = cache["ejecta_subdivisions"]
 
-            mesh = fp_array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
+            mesh = fp_array([0.8 + (i * 119.2 / ints)
+                            for i in range(ints + 1)])
 
             cache["ejecta_masses"] = []
             cache["gauss_weights"] = []
@@ -383,70 +470,6 @@ def Gauss_Kronrod_ejecta(
             gauss_weights = cache["gauss_weights"]
             kronrod_weights = cache["kronrod_weights"]
 
-
-# Sample points and weights for 15-point Gauss-Kronrod integration.
-# Based on integrating on [-1,1], needs to be rescaled to new bounds
-"""
-sample_points_pre = array(
-    [
-        0.991455371120813,
-        0.949107912342759,
-        0.864864423359769,
-        0.741531185599394,
-        0.586087235467691,
-        0.405845151377397,
-        0.207784955007898,
-        0.000000000000000,
-        -0.207784955007898,
-        -0.405845151377397,
-        -0.586087235467691,
-        -0.741531185599394,
-        -0.864864423359769,
-        -0.949107912342759,
-        -0.991455371120813,
-    ]
-)
-
-gauss_weights_pre = array(
-    [
-        0,
-        0.129484966168870,
-        0,
-        0.279705391489277,
-        0,
-        0.381830050505119,
-        0,
-        0.417959183673469,
-        0,
-        0.381830050505119,
-        0,
-        0.279705391489277,
-        0,
-        0.129484966168870,
-        0,
-    ]
-)
-
-kronrod_weights_pre = array(
-    [
-        0.022935322010529,
-        0.063092092629979,
-        0.104790010322250,
-        0.129484966168870,
-        0.169004726639267,
-        0.190350578064785,
-        0.204432940075298,
-        0.209482141084728,
-        0.204432940075298,
-        0.190350578064785,
-        0.169004726639267,
-        0.129484966168870,
-        0.104790010322250,
-        0.063092092629979,
-        0.022935322010529,
-    ]
-)
-"""
 
 # Sample points and weights for 61-point Gauss-Kronrod integration.
 # Based on integrating on [-1,1], needs to be rescaled to new bounds
