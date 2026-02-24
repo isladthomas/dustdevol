@@ -26,18 +26,24 @@ def BEDE_chab(m):
     return imf
 
 
-a_exp = fp(0.158)
 central_mass = fp(0.079)
 sigma = fp(0.69)
-
-a_pow = fp(0.0443)
-pow = fp(1.3)
-
-norm = fp(0.0815731452799614)
+A = exp(-(log10(central_mass) ** 2) / (2 * sigma**2))
+lognorm_int = fp(0.206922920981)
+M = A / log(10)
 
 
-# This is what I get by directly copying the chab function from Rowlands 2014
-# and then normalizing to 1 from 0.1 to 120
+def generic_chab(m, power):
+    imf = where(
+        m <= 1.0,
+        exp(-((log10(m) - log10(central_mass)) ** 2) / (2 * sigma**2)),
+        A * (m ** (-power)),
+    )
+    imf = imf / (m * log(10))
+    imf = imf / (lognorm_int + (M / (-power + 1)) * (120 ** (-power + 1) - 1))
+    return imf
+
+
 def chab(m):
     """Disk IMF for single objects as defined by Chabrier 2003,
     normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
@@ -53,11 +59,91 @@ def chab(m):
                ndarray corresponding to values of the imf at each of the
                given masses.
     """
+    return generic_chab(m, 1.3)
 
-    imf = where(
-        m <= 1.0,
-        a_exp * exp(-((log10(m) - log10(central_mass)) ** 2) / (2 * sigma**2)),
-        a_pow * (m ** (-pow)),
-    )
-    imf = imf / (m * log(10))
-    return imf / norm
+
+def top_chab(m):
+    """Disk IMF for single objects as defined by Chabrier 2003,
+    normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
+    Modified to be slightly more top-heavy.
+
+    Parameters
+    ----------
+        m : (m,)
+            ndarray of masses
+
+    Returns
+    -------
+        out : (m,)
+               ndarray corresponding to values of the imf at each of the
+               given masses.
+    """
+    return generic_chab(m, 0.8)
+
+
+def topper_chab(m):
+    """Disk IMF for single objects as defined by Chabrier 2003,
+    normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
+    Modified to be decently more top-heavy.
+
+    Parameters
+    ----------
+        m : (m,)
+            ndarray of masses
+
+    Returns
+    -------
+        out : (m,)
+               ndarray corresponding to values of the imf at each of the
+               given masses.
+    """
+    return generic_chab(m, 0.5)
+
+
+salp_norm = fp(5.8615127118)
+
+
+def salp(m):
+    """IMF for single objects as defined by Salpeter 1955,
+    normalized so ``m*chab(m)`` integrates to 1 over 0.1 to 120.
+
+    Parameters
+    ----------
+        m : (m,)
+            ndarray of masses
+
+    Returns
+    -------
+        out : (m,)
+               ndarray corresponding to values of the imf at each of the
+               given masses.
+    """
+    imf = m ** -2.35
+    imf = imf / salp_norm
+    return imf
+
+
+kroup_norm = fp(3.3376974089)
+
+
+def kroup(m):
+    """'Galactic Field' IMF defined by Kroupa & Weidner 2003
+    normalized so ``m*chab(m)`` integrates to 1 over 0.1 to 120.
+
+    Parameters
+    ----------
+        m : (m,)
+            ndarray of masses
+
+    Returns
+    -------
+        out : (m,)
+               ndarray corresponding to values of the imf at each of the
+               given masses.
+    """
+    imf = where(m <= 0.5,
+                2 * m ** -1.3,
+                m ** -2.3)
+    imf[m > 1] = (m ** -2.7)[m > 1]
+    imf = imf / kroup_norm
+    return imf

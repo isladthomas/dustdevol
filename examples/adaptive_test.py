@@ -1,6 +1,6 @@
 from dustdevol.evolve import evolve_2o
 from dustdevol.evolve_FCRK import evolve_2o_FC
-from dustdevol.imf import chab
+from dustdevol.imf import chab, chab_from_generic
 import dustdevol.generic as g
 from dustdevol.DeVis2017 import (
     xSFR_inflow,
@@ -15,30 +15,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 start = timer()
-results = evolve_2o(
+results = evolve_2o_FC(
     g.fp(0),
     g.fp(13.79),
     g.sfr_from_file,
-    chab,
+    chab_from_generic,
     xSFR_inflow,
     xSFR_outflow,
     g.off,
     grain_growth,
-    dust_destruction,
-    stellar_ejecta,
-    [4e10],
-    [0],
-    [0, 0],
-    [0],
+    bede.dust_destruction,
+    bede.stellar_ejecta,
+    g.fp_array([4e10]),
+    g.fp_array([0]),
+    g.fp_array([0, 0]),
+    g.fp_array([0]),
     {
         "sfr_file": "Milkyway_2017.sfh",
-        "sn_dust_reduction": 1,
-        "sn_destruction": 0,
-        "inflow_xSFR": 0,
-        "outflow_xSFR": 0,
-        "cold_fraction": 0.5,
-        "grain_growth_epsilon": 0,
-        "stellar_lifetimes": g.S92,
+        "sn_dust_reduction": g.fp(1),
+        "sn_destruction": g.fp(0),
+        "inflow_xSFR": g.fp(0),
+        "outflow_xSFR": g.fp(0),
+        "cold_fraction": g.fp(0.5),
+        "grain_growth_epsilon": g.fp(0),
+        "stellar_lifetimes": g.stellar_lifetimes,
         "dust_yields": g.TF01,
         "metal_yields": g.vdHG97_M92_yields,
         "yield_table_z_cutoffs": g.vdHG97_M92_cutoffs,
