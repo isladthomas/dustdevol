@@ -63,7 +63,7 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
             )
             - tau0
         )
-    ).max() > fp(2e-3):
+    ).max() > fp(1e-3):
         soln = root(
             lambda tau: stellar_lifetimes(
                 (
@@ -78,14 +78,12 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
             - tau,
             tau0,
             method="krylov",
-            options={"fatol": fp(2e-3)},
+            options={"fatol": fp(1e-3)},
         ).x
     else:
         soln = tau0
 
     cache["ejecta_lifetimes"] = soln
-
-    # breakpoint()
 
     return soln
 

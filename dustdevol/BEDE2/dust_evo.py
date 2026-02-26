@@ -131,6 +131,8 @@ def THEMIS_dust_destruction(
 
     mdust_des = mdust * (1 - model_params["cold_fraction"]) * t_des**-1
 
+    mdust_des[mdust_des != mdust_des] = 0
+
     t_photo = photofragmentation_timescale(
         model_params["photofrag_efficiency"], sfr, mstar
     )
@@ -141,6 +143,8 @@ def THEMIS_dust_destruction(
         * (1 - model_params["silicate_fraction"])
         * t_photo**-1
     )
+
+    mdust_frag[mdust_frag != mdust_frag] = 0
 
     return mdust_des + mdust_frag
 
@@ -204,8 +208,7 @@ def THEMIS_grain_growth(
         (1 - model_params["cold_fraction"]) * diffuse_time_gg**-1
 
     # turn any NaNs into zeros
-    if any(diffuse_mdust_gg != diffuse_mdust_gg):
-        diffuse_mdust_gg = fp_zeros(len(mdust))
+    diffuse_mdust_gg[diffuse_mdust_gg != diffuse_mdust_gg] = 0
 
     # nab cloud grain growth
     cloud_time_gg = cloud_BEDE_gt(
@@ -220,8 +223,7 @@ def THEMIS_grain_growth(
     cloud_mdust_gg = mdust * model_params["cold_fraction"] * cloud_time_gg**-1
 
     # turn any NaNs into zeros
-    if any(cloud_mdust_gg != cloud_mdust_gg):
-        cloud_mdust_gg = fp_zeros(len(mdust))
+    cloud_mdust_gg[cloud_mdust_gg != cloud_mdust_gg] = 0
 
     # add up grain growth from both sources. If it's somehow negative,
     # set it to zero

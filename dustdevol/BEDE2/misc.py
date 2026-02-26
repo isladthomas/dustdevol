@@ -1,4 +1,4 @@
-from numpy import where, logspace, log10, diff, clip, exp, array, sort
+from numpy import where, logspace, log10, diff, clip, exp, array, sort, maximum
 from dustdevol.generic import fp
 from scipy.optimize import root
 from scipy.stats import poisson, uniform, loguniform
@@ -38,14 +38,14 @@ def sfr_from_efficiency(
 
     sfe = (
         model_params["star_formation_efficiency"]
-        * (mstar / 1e9) ** 0.25
+        * (maximum(1e5, mstar) / 1e9) ** 0.25
         * (1 + exp(mstar / (10 * mgas))) ** -3
         * (1 + redshift) ** -1
     )
 
     sfr = sfe * mgas
 
-    return sfr
+    return sfr.sum()
 
 
 def bursty_sfr_from_efficiency(
@@ -123,7 +123,7 @@ def bursty_sfr_from_efficiency(
 
     sfe = (
         model_params["star_formation_efficiency"]
-        * (mstar / 1e9) ** 0.25
+        * (maximum(1e5, mstar) / 1e9) ** 0.25
         * (1 + exp(mstar / (10 * mgas))) ** -3
         * (1 + redshift) ** -1
     )
@@ -143,11 +143,11 @@ def bursty_sfr_from_efficiency(
     else:
         burst_sfr = 0
 
-    return sfr + burst_sfr
+    return (sfr + burst_sfr).sum()
 
 
 def life_from_mass_vec(
-    masses, metal_hist, gas_hist, stellar_lifetimes, type_Ia_ratio, t, cache
+    masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
 ):
     """
     Function which finds stellar lifetime by solving the equation
@@ -223,10 +223,10 @@ def life_from_mass_vec(
 
     cache["sn_lifetimes"] = soln
 
-    return soln * (1 + type_Ia_ratio)
+    return soln
 
 
-def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, cache):
+def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, type_Ia_ratio, cache):
     """
     Calculate rate of supernova events in SN/Gyr, ignoring Type Ia SN using
     the "metallicity at death" approximation for finding lifetimes.
@@ -278,4 +278,4 @@ def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, ca
 
     sn_rate = (imf_vals * d_masses * sfr_vals).sum()
 
-    return sn_rate
+    return sn_rate * (1 + type_Ia_ratio)
