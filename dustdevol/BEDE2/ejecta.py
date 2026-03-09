@@ -7,7 +7,7 @@ from numpy import (
     searchsorted,
     clip,
 )
-from scipy.optimize import root
+from scipy.optimize.elementwise import find_root
 
 
 def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache):
@@ -49,7 +49,7 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
         cache["ejecta_lifetimes"] = stellar_lifetimes((fp(0), masses))
         tau0 = cache["ejecta_lifetimes"]
 
-    if abs(
+    retry = abs(
         (
             stellar_lifetimes(
                 (
@@ -63,29 +63,28 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
             )
             - tau0
         )
-    ).max() > fp(1e-3):
-        soln = root(
-            lambda tau: stellar_lifetimes(
+    ) > fp(2e-3)
+    if any(retry):
+        tau0[retry] = find_root(
+            lambda tau, mass: stellar_lifetimes(
                 (
                     clip(
                         (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
                         fp(0.001),
                         fp(0.04),
                     ),
-                    masses,
+                    mass,
                 )
             )
             - tau,
-            tau0,
-            method="krylov",
-            options={"fatol": fp(1e-3)},
+            [tau0[retry] / 1.5, tau0[retry] * 1.5],
+            args=(masses[retry],),
+            tolerances={"xatol": fp(2e-3)},
         ).x
-    else:
-        soln = tau0
 
-    cache["ejecta_lifetimes"] = soln
+    cache["ejecta_lifetimes"] = tau0
 
-    return soln
+    return tau0
 
 
 def remnant_mass(m):

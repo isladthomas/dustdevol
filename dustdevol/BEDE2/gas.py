@@ -250,7 +250,7 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
         )
         tau0 = cache["IGM_lifetimes"]
 
-    if abs(
+    retry = abs(
         (
             fp_array(
                 (
@@ -280,47 +280,47 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
             * scaling
             - tau0
         )
-    ).max() > fp(1e-3):
-        soln = fp_empty((3, n_samp))
-        soln[0] = find_root(
+    ) > fp(2e-3)
+    if retry[0].any():
+        tau0[0][retry[0]] = find_root(
             lambda tau, dev: IGM_lifetimes_v0(
                 z_at_t(t - (tau * (1 + (dev / 2)))),
                 star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
             )
             * scaling
             - tau,
-            (tau0[0] / 3, tau0[0] * 3),
-            args=(std,),
-            tolerances={"xatol": 1e-3},
+            (tau0[0][retry[0]] / 3, tau0[0][retry[0]] * 3),
+            args=(std[retry[0]],),
+            tolerances={"xatol": 2e-3},
         ).x
-        soln[1] = find_root(
+    if retry[1].any():
+        tau0[1][retry[1]] = find_root(
             lambda tau, dev: IGM_lifetimes_v150(
                 z_at_t(t - (tau * (1 + (dev / 2)))),
                 star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
             )
             * scaling
             - tau,
-            (tau0[1] / 3, tau0[1] * 3),
-            args=(std,),
-            tolerances={"xatol": 1e-3},
+            (tau0[1][retry[1]] / 3, tau0[1][retry[1]] * 3),
+            args=(std[retry[1]],),
+            tolerances={"xatol": 2e-3},
         ).x
-        soln[2] = find_root(
+    if retry[2].any():
+        tau0[2][retry[2]] = find_root(
             lambda tau, dev: IGM_lifetimes_v300(
                 z_at_t(t - (tau * (1 + (dev / 2)))),
                 star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
             )
             * scaling
             - tau,
-            (tau0[2] / 3, tau0[2] * 3),
-            args=(std,),
-            tolerances={"xatol": 1e-3},
+            (tau0[2][retry[2]] / 3, tau0[2][retry[2]] * 3),
+            args=(std[retry[2]],),
+            tolerances={"xatol": 2e-3},
         ).x
-    else:
-        soln = tau0
 
-    cache["IGM_lifetimes"] = soln
+    cache["IGM_lifetimes"] = tau0
 
-    return soln
+    return tau0
 
 
 def nelson_recyc(

@@ -1,6 +1,6 @@
 from numpy import where, logspace, log10, diff, clip, exp, array, sort, maximum
 from dustdevol.generic import fp
-from scipy.optimize import root
+from scipy.optimize.elementwise import find_root
 from scipy.stats import poisson, uniform, loguniform
 
 
@@ -187,7 +187,7 @@ def life_from_mass_vec(
         cache["sn_lifetimes"] = stellar_lifetimes((fp(0), masses))
         tau0 = cache["sn_lifetimes"]
 
-    if abs(
+    retry = abs(
         (
             stellar_lifetimes(
                 (
@@ -201,29 +201,28 @@ def life_from_mass_vec(
             )
             - tau0
         )
-    ).max() > fp(2e-3):
-        soln = root(
-            lambda tau: stellar_lifetimes(
+    ) > fp(2e-3)
+    if any(retry):
+        tau0[retry] = find_root(
+            lambda tau, mass: stellar_lifetimes(
                 (
                     clip(
                         (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
                         fp(0.001),
                         fp(0.04),
                     ),
-                    masses,
+                    mass,
                 )
             )
             - tau,
-            tau0,
-            method="krylov",
-            options={"fatol": fp(2e-3)},
+            [tau0[retry] / 1.5, tau0[retry] * 1.5],
+            args=(masses[retry],),
+            tolerances={"xatol": fp(2e-3)},
         ).x
-    else:
-        soln = tau0
 
-    cache["sn_lifetimes"] = soln
+    cache["sn_lifetimes"] = tau0
 
-    return soln
+    return tau0
 
 
 def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, type_Ia_ratio, cache):
