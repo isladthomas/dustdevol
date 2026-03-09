@@ -245,8 +245,10 @@ def evolve_2o_FC(
     star_formation_rates[0] = sfr
 
     def sfr_hist(t):
-        if hasattr(t, "__len__"):
-            return fp_array([sfr] * len(t))
+        if hasattr(t, "shape"):
+            r = fp_empty(t.shape)
+            r[:] = sfr
+            return r
         else:
             return fp_array(sfr)
 

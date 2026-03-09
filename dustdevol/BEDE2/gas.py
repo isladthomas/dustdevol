@@ -1,7 +1,21 @@
-from numpy import exp, where, clip, log10, linspace, minimum, maximum, column_stack
+from numpy import (
+    diff,
+    stack,
+    exp,
+    where,
+    clip,
+    log10,
+    linspace,
+    minimum,
+    maximum,
+    column_stack,
+    sqrt,
+    pi,
+)
+from scipy.special import erf
 from scipy.interpolate import RegularGridInterpolator
-from scipy.optimize import root
-from dustdevol.generic import fp_zeros, z_at_t, fp, fp_array
+from scipy.optimize.elementwise import find_root
+from dustdevol.generic import fp_zeros, z_at_t, fp, fp_array, fp_empty
 
 
 def BEDE_inflow(
@@ -67,6 +81,15 @@ def BEDE_inflow(
         model_params["inflow_dust"] = fp_zeros(len(mdust))
         dust_inflow = fp_zeros(len(mdust))
 
+    try:
+        cache["inflow"][t] = gas_inflow
+        cache["inflow"] = {
+            key: value for key, value in cache["inflow"].items() if key <= t
+        }
+    except KeyError:
+        cache["inflow"] = {}
+        cache["inflow"][t] = gas_inflow
+
     return gas_inflow, metal_inflow, dust_inflow
 
 
@@ -108,7 +131,7 @@ def Nelson_outflow(
     """
 
     eta = mass_loading(fp_array([redshift]), mstar)
-    gas_outflow = minimum((sfr * 10**eta).sum(), mgas * 0.5 / 0.03)
+    gas_outflow = minimum((sfr * 10**eta)[0], mgas * 0.5 / 0.03)
 
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
@@ -125,6 +148,15 @@ def Nelson_outflow(
     except KeyError:
         model_params["outflow_dust"] = fp_zeros(len(mdust))
         dust_outflow = fp_zeros(len(mdust))
+
+    try:
+        cache["outflow"][t] = gas_outflow[0]
+        cache["outflow"] = {
+            key: value for key, value in cache["outflow"].items() if key <= t
+        }
+    except KeyError:
+        cache["outflow"] = {}
+        cache["outflow"][t] = gas_outflow[0]
 
     return gas_outflow, metal_outflow, dust_outflow
 
@@ -151,22 +183,54 @@ def BEDE_recycling(
         t, redshift, star_hist, model_params["recycling_scaling"], cache
     )
 
-    return nelson_recyc(
-        star_hist(t - ejection_times),
-        z_at_t(t - ejection_times),
-        where(t - ejection_times > 0, sfr_hist(t - ejection_times), 0),
-        metal_hist(t - ejection_times)
-        / gas_hist(t - ejection_times)[0]
+    retn = nelson_recyc(
+        star_hist(t - (ejection_times * (1 + (std / 2)))),
+        z_at_t(t - (ejection_times * (1 + (std / 2)))),
+        where(
+            t - (ejection_times * (1 + (std / 2))) > 0,
+            sfr_hist(t - (ejection_times * (1 + (std / 2)))),
+            0,
+        ),
+        metal_hist(t - (ejection_times * (1 + (std / 2))))
+        / gas_hist(t - (ejection_times * (1 + (std / 2))))
         * model_params["outflow_metal"],
-        dust_hist(t - ejection_times)
-        / gas_hist(t - ejection_times)[0]
+        dust_hist(t - (ejection_times * (1 + (std / 2))))
+        / gas_hist(t - (ejection_times * (1 + (std / 2))))
         * model_params["outflow_dust"],
         exp(
             -model_params["IGM_loss"]
             * model_params["recycling_scaling"]
-            * ejection_times
+            * ejection_times * (1 + (std / 2))
         ),
+        std_fac * norm_const,
     )
+
+    try:
+        cache["recycling"][t] = retn[0]
+        cache["recycling"] = {
+            key: value for key, value in cache["recycling"].items() if key <= t
+        }
+    except KeyError:
+        cache["recycling"] = {}
+        cache["recycling"][t] = retn[0]
+
+    return retn
+
+
+# We're gonna smear out the recycling across a gaussian dist, clipped at 0
+# so that we don't have material being recycled before it's even ejected!
+# we're also assuming the stddev is 1/2 the recycling time.
+# s tells us standard deviation off the mean to sample, -2 is right when it's
+# ejected, -1 is t/2, 0 is t, and so on.
+# norm_const is the constant part of the integral of our clipped gaussian
+# from ejection time to infinity. This, divided by t, is the full integral,
+# which we need to divide our function by to ensure consv. of mass.
+# finally std_fac gives multiplicative factors for how far off from the mean
+# each point is.
+n_samp = 43
+std = linspace(-2, 3, n_samp)
+norm_const = 5 / (((n_samp - 1) * 2) * sqrt(pi / 2) * (1 + erf(sqrt(2))) / 2)
+std_fac = exp(-(std**2) / 2)
 
 
 def find_recycle_times(t, redshift, star_hist, scaling, cache):
@@ -174,28 +238,82 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
     try:
         tau0 = cache["IGM_lifetimes"]
     except KeyError:
-        cache["IGM_lifetimes"] = IGM_lifetimes(
-            fp_array([redshift]), fp(0)) * scaling
+        cache["IGM_lifetimes"] = fp_array(
+            (
+                (IGM_lifetimes_v0(
+                    fp_array([redshift] * n_samp), fp_zeros(n_samp)) * scaling),
+                (IGM_lifetimes_v150(
+                    fp_array([redshift] * n_samp), fp_zeros(n_samp)) * scaling),
+                (IGM_lifetimes_v300(
+                    fp_array([redshift] * n_samp), fp_zeros(n_samp)) * scaling),
+            )
+        )
         tau0 = cache["IGM_lifetimes"]
 
     if abs(
         (
-            IGM_lifetimes(
-                z_at_t(t - tau0),
-                star_hist(t - tau0)[:, 0],
+            fp_array(
+                (
+                    (
+                        IGM_lifetimes_v0(
+                            z_at_t(t - (tau0[0] * (1 + (std / 2)))),
+                            star_hist(t - (tau0[0] * (1 + (std / 2))))[:, 0],
+                        )
+                        * scaling
+                    ),
+                    (
+                        IGM_lifetimes_v150(
+                            z_at_t(t - (tau0[1] * (1 + (std / 2)))),
+                            star_hist(t - (tau0[1] * (1 + (std / 2))))[:, 0],
+                        )
+                        * scaling
+                    ),
+                    (
+                        IGM_lifetimes_v300(
+                            z_at_t(t - (tau0[2] * (1 + (std / 2)))),
+                            star_hist(t - (tau0[2] * (1 + (std / 2))))[:, 0],
+                        )
+                        * scaling
+                    ),
+                )
             )
             * scaling
             - tau0
         )
     ).max() > fp(1e-3):
-        soln = root(
-            lambda tau: IGM_lifetimes(
-                z_at_t(t - tau),
-                star_hist(t - tau)[:, 0],
+        soln = fp_empty((3, n_samp))
+        soln[0] = find_root(
+            lambda tau, dev: IGM_lifetimes_v0(
+                z_at_t(t - (tau * (1 + (dev / 2)))),
+                star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
             )
             * scaling
             - tau,
-            tau0,
+            (tau0[0] / 3, tau0[0] * 3),
+            args=(std,),
+            tolerances={"xatol": 1e-3},
+        ).x
+        soln[1] = find_root(
+            lambda tau, dev: IGM_lifetimes_v150(
+                z_at_t(t - (tau * (1 + (dev / 2)))),
+                star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
+            )
+            * scaling
+            - tau,
+            (tau0[1] / 3, tau0[1] * 3),
+            args=(std,),
+            tolerances={"xatol": 1e-3},
+        ).x
+        soln[2] = find_root(
+            lambda tau, dev: IGM_lifetimes_v300(
+                z_at_t(t - (tau * (1 + (dev / 2)))),
+                star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
+            )
+            * scaling
+            - tau,
+            (tau0[2] / 3, tau0[2] * 3),
+            args=(std,),
+            tolerances={"xatol": 1e-3},
         ).x
     else:
         soln = tau0
@@ -205,15 +323,23 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
     return soln
 
 
-def nelson_recyc(mstar, redshift, sfr, metal_frac, dust_frac, escape_factor):
+def nelson_recyc(
+    mstar, redshift, sfr, metal_frac, dust_frac, escape_factor, dist_factor
+):
 
-    eta = mass_loading(redshift, mstar[:, 0])
-    gas_outflow = escape_factor * sfr * 10**eta
+    eta = mass_loading_recyc(redshift, mstar[:, :, 0])
+    eta[:, :, :-1] = -diff(10**eta)
+    eta = eta.diagonal(axis2=2).transpose()
+    gas_outflow = dist_factor * escape_factor * sfr * eta
 
-    metal_outflow = gas_outflow[:, None] * metal_frac
-    dust_outflow = gas_outflow[:, None] * dust_frac
+    metal_outflow = gas_outflow[:, :, None] * metal_frac
+    dust_outflow = gas_outflow[:, :, None] * dust_frac
 
-    return gas_outflow.sum(axis=0), metal_outflow.sum(axis=0), dust_outflow.sum(axis=0)
+    return (
+        gas_outflow.sum(axis=(0, 1)),
+        metal_outflow.sum(axis=(0, 1)),
+        dust_outflow.sum(axis=(0, 1)),
+    )
 
 
 Nelson_Z = fp_array((0, 0.5, 1.0, 2.0, 4.0))
@@ -337,15 +463,27 @@ Nelson_logEta_cubic = fp_array(
 Nelson_interp_cubic_extrap = RegularGridInterpolator(
     (Nelson_Z, Nelson_logMstar), Nelson_logEta_cubic, method="cubic"
 )
+Nelson_interp_lin_extrap = RegularGridInterpolator(
+    (Nelson_Z, Nelson_logMstar), Nelson_logEta_cubic, method="slinear"
+)
 
 
-def Nelson_interp_cubic(redshift, mstar):
+def mass_loading_recyc(redshift, mstar):
     z = clip(redshift, 0, 4.0)
     m = clip(log10(mstar), 7.5, 11.5)
-    return Nelson_interp_cubic_extrap(column_stack((z, m)))[0, :]
+    return (
+        Nelson_interp_lin_extrap(column_stack((z.flatten(), m.flatten())))
+        .reshape(3, n_samp, 3)
+    )
 
 
-mass_loading = Nelson_interp_cubic
+def Nelson_interp_lin(redshift, mstar):
+    z = clip(redshift, 0, 4.0)
+    m = clip(log10(mstar), 7.5, 11.5)
+    return Nelson_interp_lin_extrap(column_stack((z, m)))[0, :]
+
+
+mass_loading = Nelson_interp_lin
 
 TNG100_Z = fp_array([0.2, 0.5, 1.0, 2.0, 4.0])
 TNG100_logMstar = fp_array([8.0, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5])
@@ -401,12 +539,41 @@ TNG100_lifetimes = fp_array(
 )
 
 
-IGM_lifetimes_extrap = RegularGridInterpolator(
-    (TNG100_Z, TNG100_logMstar), TNG100_lifetimes, method="cubic"
+IGM_lifetimes_extrap_v0 = RegularGridInterpolator(
+    (TNG100_Z, TNG100_logMstar), TNG100_lifetimes[:, :, 0], method="cubic"
+)
+
+IGM_lifetimes_extrap_v150 = RegularGridInterpolator(
+    (TNG100_Z, TNG100_logMstar), TNG100_lifetimes[:, :, 1], method="cubic"
+)
+
+IGM_lifetimes_extrap_v300 = RegularGridInterpolator(
+    (TNG100_Z, TNG100_logMstar), TNG100_lifetimes[:, :, 2], method="cubic"
 )
 
 
-def IGM_lifetimes(redshift, mstar):
+def IGM_lifetimes_v0(redshift, mstar):
     z = clip(redshift, 0.2, 4.0)
     m = clip(log10(mstar), 8.0, 11.5)
-    return maximum(IGM_lifetimes_extrap(column_stack((z, m)))[0, :], 0)
+    return maximum(
+        IGM_lifetimes_extrap_v0(column_stack((z.flatten(), m.flatten()))),
+        0,
+    )
+
+
+def IGM_lifetimes_v150(redshift, mstar):
+    z = clip(redshift, 0.2, 4.0)
+    m = clip(log10(mstar), 8.0, 11.5)
+    return maximum(
+        IGM_lifetimes_extrap_v150(column_stack((z.flatten(), m.flatten()))),
+        0,
+    )
+
+
+def IGM_lifetimes_v300(redshift, mstar):
+    z = clip(redshift, 0.2, 4.0)
+    m = clip(log10(mstar), 8.0, 11.5)
+    return maximum(
+        IGM_lifetimes_extrap_v300(column_stack((z.flatten(), m.flatten()))),
+        0,
+    )

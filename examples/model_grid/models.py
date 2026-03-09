@@ -19,7 +19,7 @@ from dustdevol.imf import salp
 
 reference = {
     "time_start": fp(0),
-    "time_end": fp(13),
+    "time_end": fp(13.8),
     "sfr_model": sfr_from_efficiency,
     "imf": salp,
     "inflow_model": BEDE_inflow,
