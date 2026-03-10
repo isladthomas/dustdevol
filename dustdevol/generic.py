@@ -13,6 +13,7 @@ from numpy import (
 )
 from astropy.cosmology import Planck13
 from scipy.interpolate import make_interp_spline, RegularGridInterpolator
+from scipy.stats import skewnorm
 
 # define working precision
 # NOTE: Due to the way scipy.interpolate.PPoly works, there's no point setting
@@ -170,9 +171,16 @@ def sfr_from_file(
                 vals[:, 0], vals[:, 1], k=model_params["sfr_interp_order"]
             )
         except KeyError:
-            cache["sfr_interp"] = make_interp_spline(
-                vals[:, 0], vals[:, 1], k=3)
+            cache["sfr_interp"] = make_interp_spline(vals[:, 0], vals[:, 1], k=3)
         return cache["sfr_interp"]([t])[0]
+
+
+# Type Ia DTD from Strolger
+unnormed_S2020 = skewnorm(220, loc=0.01, scale=0.6).pdf
+
+
+def S2020(t):
+    return unnormed_S2020(t) / 0.9999998920829796
 
 
 # stellar lifetime table according to Schaller et. al 1992
@@ -205,8 +213,7 @@ S92 = fp_array(
 # cubically
 S92S93_Z = fp_array((0.001, 0.008, 0.02, 0.04))
 S92S93_M = fp_array(
-    (0.8, 0.9, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0,
-     7.0, 12.0, 20.0, 40.0, 60.0, 85.0, 120.0)
+    (0.8, 0.9, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0, 12.0, 20.0, 40.0, 60.0, 85.0, 120.0)
 )
 
 S92S93 = fp_array(
@@ -316,10 +323,8 @@ TF01 = fp_array(
 # calculable for these stars, will be trapped in a black hole
 vdHG97_M92_yields = fp_array(
     (
-        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07,
-         6.147e-05, 2.565e-05, 0, -3.483e-05),
-        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05,
-         0.000112, 5.36e-05, 0.00161, 0.000981),
+        (0.9, 0, -1.773e-06, 9.72e-06, -6.498e-07, 6.147e-05, 2.565e-05, 0, -3.483e-05),
+        (1.0, 0, -2.23e-06, 0.000854, 6.36e-05, 0.000112, 5.36e-05, 0.00161, 0.000981),
         (
             1.3,
             0.004017,
@@ -397,8 +402,7 @@ vdHG97_M92_yields = fp_array(
             0.02496,
             -0.000864,
         ),
-        (5.0, 0.0386, 0.00206, 0.03535, 0.001285,
-         0.03295, 0.00033, 0.0314, -0.001455),
+        (5.0, 0.0386, 0.00206, 0.03535, 0.001285, 0.03295, 0.00033, 0.0314, -0.001455),
         (
             7.0,
             0.06727,
@@ -438,4 +442,46 @@ vdHG97_M92_yields = fp_array(
 # Z < 0.0025 means use the first set, z < 0.006 use the second, etc.
 vdHG97_M92_cutoffs = fp_array((0.0025, 0.006, 0.01, inf))
 
-#
+# yield tables for type Ia SN, from Table 3 in Leung & Nomoto 2018
+# note that we have two identical columns. This is because, interanally,
+# the metallicity lookup function doesn't work with only 1 initial mass value
+LN2018_yields = fp_array(
+    (
+        (
+            1,
+            1.31249031,
+            0.0419,
+            1.39350736,
+            0.0445,
+            1.31688755,
+            0.0538,
+            1.31471865,
+            0.0545,
+            1.39674679,
+            0.0549,
+            1.33574176,
+            0.0549,
+            1.36319016,
+            0.0655,
+        ),
+        (
+            1,
+            1.31249031,
+            0.0419,
+            1.39350736,
+            0.0445,
+            1.31688755,
+            0.0538,
+            1.31471865,
+            0.0545,
+            1.39674679,
+            0.0549,
+            1.33574176,
+            0.0549,
+            1.36319016,
+            0.0655,
+        ),
+    )
+)
+
+LN2018_cutoffs = fp_array((0.00067, 0.00402, 0.01005, 0.0201, 0.0335, 0.0536, inf))

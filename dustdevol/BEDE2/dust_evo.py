@@ -38,7 +38,6 @@ def dust_destruction(
                    \"sn_destruction\" : amount of gas affected per SN in Msol
                    \"cold_fraction\" : fraction of mass in molecular clouds
                    should have same shape as init_dust
-                   \"type_Ia_ratio\" : ratio of type Ia to type II SN
 
     Results
     -------
@@ -53,9 +52,8 @@ def dust_destruction(
         sfr_hist,
         t,
         model_params["stellar_lifetimes"],
-        model_params["type_Ia_ratio"],
         cache,
-    )
+    ) + cache["Ia_rate"]
 
     t_des = destruction_timescale(
         model_params["sn_destruction"], mgas, sn_rate)
@@ -103,7 +101,6 @@ def THEMIS_dust_destruction(
                    \"sn_destruction\" : amount of gas affected per SN in Msol
                    \"cold_fraction\" : fraction of mass in molecular clouds
                    should have same shape as init_dust
-                   \"type_Ia_ratio\" : ratio of type Ia to type II SN
                    \"photofrag_efficiency\" : dimensionless parameter
                    controlling photofragmentation efficiency
                    \"silicate_fraction\" : fraction of dust made of silicates
@@ -122,9 +119,8 @@ def THEMIS_dust_destruction(
         sfr_hist,
         t,
         model_params["stellar_lifetimes"],
-        model_params["type_Ia_ratio"],
         cache,
-    )
+    ) + cache["Ia_rate"]
 
     t_des = destruction_timescale(
         model_params["sn_destruction"], mgas, sn_rate)

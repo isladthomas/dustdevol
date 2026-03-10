@@ -1,5 +1,6 @@
 from dustdevol.BEDE2 import (
     sfr_from_efficiency,
+    bursty_sfr_from_efficiency,
     BEDE_inflow,
     Nelson_outflow,
     THEMIS_grain_growth,
@@ -10,17 +11,22 @@ from dustdevol.BEDE2 import (
 from dustdevol.generic import (
     fp,
     fp_array,
+    fp_zeros,
     stellar_lifetimes,
     TF01,
     vdHG97_M92_yields,
     vdHG97_M92_cutoffs,
+    LN2018_yields,
+    LN2018_cutoffs,
+    S2020,
 )
 from dustdevol.imf import salp
+from copy import deepcopy
 
 reference = {
     "time_start": fp(0),
     "time_end": fp(13.8),
-    "sfr_model": sfr_from_efficiency,
+    "sfr_model": bursty_sfr_from_efficiency,
     "imf": salp,
     "inflow_model": BEDE_inflow,
     "outflow_model": Nelson_outflow,
@@ -56,7 +62,15 @@ reference = {
         "dust_yields": TF01,
         "metal_yields": vdHG97_M92_yields,
         "yield_table_z_cutoffs": vdHG97_M92_cutoffs,
+        "type_Ia_dust_yields": fp_zeros((2, 2)),
+        "type_Ia_metal_yields": LN2018_yields,
+        "type_Ia_yield_table_z_cutoffs": LN2018_cutoffs,
+        "type_Ia_delays": S2020,
+        "type_Ia_probability": 0,
     },
     "absolute_tolerance": 1,
     "relative_tolerance": 1e-3,
 }
+
+reference_Ia = deepcopy(reference)
+reference_Ia["model_params"]["type_Ia_probability"] = 1e-3

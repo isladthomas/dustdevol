@@ -140,7 +140,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     masses_half = yield_table[:-1, 0] / fp(2) + yield_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(yield_table[:, 0]) - 1)
-    return yield_table[eff_indices, i * stepsize + 1: (i + 1) * stepsize + 1]
+    return yield_table[eff_indices, i * stepsize + 1 : (i + 1) * stepsize + 1]
 
 
 def fresh_dust(
@@ -236,38 +236,53 @@ def stellar_ejecta(
     dust_yield_table = model_params["dust_yields"]
     metal_yield_table = model_params["metal_yields"]
     metallicity_cutoffs = model_params["yield_table_z_cutoffs"]
+    sn_Ia_dust_yields = model_params["type_Ia_dust_yields"]
+    sn_Ia_metal_yields = model_params["type_Ia_metal_yields"]
+    sn_Ia_cutoffs = model_params["type_Ia_yield_table_z_cutoffs"]
     sn_reduction = model_params["sn_dust_reduction"]
     stellar_lifetimes = model_params["stellar_lifetimes"]
+    sn_Ia_lifetimes = model_params["type_Ia_delays"]
+    sn_Ia_prob = model_params["type_Ia_probability"]
 
     # grab everything precomputable, and precompute it if not
     # specifically, the masses we sample, and the imfs, ejecta (m - rem)
     # and the size of the window at each mass
     try:
-        masses = model_params["ejecta_masses"]
-        ejecta = model_params["ejecta_vals"]
-        imf_vals = model_params["imf_values"]
-        d_masses = model_params["d_masses"]
+        masses = cache["ejecta_masses"]
+        ejecta = cache["ejecta_vals"]
+        imf_vals = cache["imf_values"]
+        d_masses = cache["d_masses"]
+        stars_per_gen = cache["stars_per_gen"]
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(
-            log10(0.8), log10(120), 513, dtype=fp)
+        cache["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
-        masses = model_params["ejecta_masses"]
-        model_params["d_masses"] = diff(masses)
-        d_masses = model_params["d_masses"]
+        masses = cache["ejecta_masses"]
+        cache["d_masses"] = diff(masses)
+        d_masses = cache["d_masses"]
 
         # switch "masses" to the midpoints, instead of left edges
-        model_params["ejecta_masses"] = masses[:-1] + (d_masses / fp(2))
-        masses = model_params["ejecta_masses"]
+        cache["ejecta_masses"] = masses[:-1] + (d_masses / fp(2))
+        masses = cache["ejecta_masses"]
 
         # calcualte imf and ejecta at midpoints
-        model_params["imf_values"] = imf(masses)
-        imf_vals = model_params["imf_values"]
+        cache["imf_values"] = imf(masses) * where(
+            masses <= 8, 1 - sn_Ia_prob, 1
+        )  # don't double_count Ia's
+        imf_vals = cache["imf_values"]
         remnants = remnant_mass(masses)
-        model_params["ejecta_vals"] = masses - remnants
-        ejecta = model_params["ejecta_vals"]
+        cache["ejecta_vals"] = masses - remnants
+        ejecta = cache["ejecta_vals"]
+
+        # calculate total number of stars per solar mass of formed stars
+        # important for calculating type Ia rates
+        tot_masses = logspace(log10(0.1), log10(120), 513, dtype=fp)
+        tot_d_masses = diff(tot_masses)
+        tot_masses = tot_masses[:-1] + (tot_d_masses / fp(2))
+        cache["stars_per_gen"] = (imf(tot_masses) * tot_d_masses).sum()
+        stars_per_gen = cache["stars_per_gen"]
 
     # determine if high or low metallicity lifetimes are to be used
     lifetimes = life_from_mass_vec(
@@ -300,7 +315,33 @@ def stellar_ejecta(
         sn_reduction,
         masses,
     )
-    ejected_dust = (fresh_dust_ejecta * sfr_vals *
-                    imf_vals * d_masses).sum(axis=0)
+    ejected_dust = (fresh_dust_ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
+    # calculate type Ia contribution
+    sn_Ia_rate = (
+        stars_per_gen
+        * sn_Ia_prob
+        * sfr_vals[masses <= 8]
+        * sn_Ia_lifetimes(lifetimes[masses <= 8])
+        * where(
+            t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0)
+        )
+    )
+    cache["Ia_rate"] = sn_Ia_rate.sum()
+    ejected_gas += (ejecta[masses <= 8] * sn_Ia_rate).sum(axis=0)
+
+    sn_Ia_fresh_metal = fresh_metals(
+        sn_Ia_metal_yields, sn_Ia_cutoffs, masses[masses <= 8], mmetal / mgas[0]
+    )
+    ejected_metal += (
+        (sn_Ia_fresh_metal + old_metal_ejecta[masses <= 8]) * sn_Ia_rate[:, None]
+    ).sum(axis=0)
+
+    sn_Ia_fresh_dust = fresh_dust(
+        sn_Ia_dust_yields,
+        (sn_Ia_fresh_metal + old_metal_ejecta[masses <= 8])[:, 0],
+        sn_reduction,
+        masses[masses <= 8],
+    )
+    ejected_dust += (sn_Ia_fresh_dust * sn_Ia_rate).sum(axis=0)
 
     return ejected_gas, ejected_metal, ejected_dust

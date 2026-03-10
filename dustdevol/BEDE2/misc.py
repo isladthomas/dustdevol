@@ -116,6 +116,7 @@ def bursty_sfr_from_efficiency(
             burst_starts = array([])
             burst_ends = array([])
             burst_sizes = array([])
+        print(burst_starts)
 
         cache["burst_starts"] = burst_starts
         cache["burst_ends"] = burst_ends
@@ -136,7 +137,7 @@ def bursty_sfr_from_efficiency(
     # encountering a starburst in a mini-step, i.e. the star mass at the start
     # of the burst hasn't been finalized yet. Plus, it's just a few extra
     # polynomial evaluations, not actually that bad for performance
-    is_burst = (burst_starts >= t) & (burst_ends <= t)
+    is_burst = (burst_starts <= t) & (burst_ends >= t)
     if any(is_burst):
         burst_start = burst_starts[is_burst]
         burst_sfr = star_hist(burst_start) * burst_sizes[is_burst]
@@ -225,7 +226,7 @@ def life_from_mass_vec(
     return tau0
 
 
-def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, type_Ia_ratio, cache):
+def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, cache):
     """
     Calculate rate of supernova events in SN/Gyr, ignoring Type Ia SN using
     the "metallicity at death" approximation for finding lifetimes.
@@ -277,4 +278,4 @@ def supernova_rate(imf, metal_hist, gas_hist, sfr_hist, t, stellar_lifetimes, ty
 
     sn_rate = (imf_vals * d_masses * sfr_vals).sum()
 
-    return sn_rate * (1 + type_Ia_ratio)
+    return sn_rate
