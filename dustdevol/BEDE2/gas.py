@@ -131,7 +131,7 @@ def Nelson_outflow(
     """
 
     eta = mass_loading(fp_array([redshift]), mstar)
-    gas_outflow = minimum((sfr * 10**eta)[0], mgas * 0.5 / 0.03)
+    gas_outflow = (sfr * 10**eta)[0]
 
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
@@ -150,13 +150,13 @@ def Nelson_outflow(
         dust_outflow = fp_zeros(len(mdust))
 
     try:
-        cache["outflow"][t] = gas_outflow[0]
+        cache["outflow"][t] = gas_outflow
         cache["outflow"] = {
             key: value for key, value in cache["outflow"].items() if key <= t
         }
     except KeyError:
         cache["outflow"] = {}
-        cache["outflow"][t] = gas_outflow[0]
+        cache["outflow"][t] = gas_outflow
 
     return gas_outflow, metal_outflow, dust_outflow
 

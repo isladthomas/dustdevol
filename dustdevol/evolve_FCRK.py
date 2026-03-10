@@ -356,21 +356,56 @@ def evolve_2o_FC(
                 ]
 
                 # calculate all derivatives at current time
-                dmgas_astration = sfr * (mgas_int[j] / mgas_int[j, 0])
-                dmmetal_astration = sfr * (mmetal_int[j] / mgas_int[j, 0])
-                dmdust_astration = sfr * (mdust_int[j] / mgas_int[j, 0])
+                while True:
+                    dmgas_astration = sfr * (mgas_int[j] / mgas_int[j, 0])
+                    dmmetal_astration = sfr * (mmetal_int[j] / mgas_int[j, 0])
+                    dmdust_astration = sfr * (mdust_int[j] / mgas_int[j, 0])
 
-                dmgas_inflows, dmmetal_inflows, dmdust_inflows = inflow_model(
-                    model_params, sfr, imf, t + step, redshift, *y, *interp, cache
-                )
+                    dmgas_inflows, dmmetal_inflows, dmdust_inflows = inflow_model(
+                        model_params, sfr, imf, t + step, redshift, *y, *interp, cache
+                    )
 
-                dmgas_outflows, dmmetal_outflows, dmdust_outflows = outflow_model(
-                    model_params, sfr, imf, t + step, redshift, *y, *interp, cache
-                )
+                    dmgas_outflows, dmmetal_outflows, dmdust_outflows = outflow_model(
+                        model_params, sfr, imf, t + step, redshift, *y, *interp, cache
+                    )
 
-                dmgas_recycling, dmmetal_recycling, dmdust_recycling = recycling_model(
-                    model_params, sfr, imf, t + step, redshift, *y, *interp, cache
-                )
+                    dmgas_recycling, dmmetal_recycling, dmdust_recycling = recycling_model(
+                        model_params, sfr, imf, t + step, redshift, *y, *interp, cache
+                    )
+
+                    # check that outflows are not too large (50% of gas blown
+                    # out in 30 Myr). If they are, rescale sfr and recalculate
+                    # the gas stuff.
+                    # NOTE: We include a little "fudge factor" when checking
+                    # size of outflows. This is due to floating point
+                    # shenanigans; the condition fails
+                    if dmgas_outflows <= (0.5 * mgas_int[j, 0] / 0.03) * 1.001:
+                        break
+                    else:
+                        print((0.5 * mgas_int[j, 0]) / (0.03 * dmgas_outflows))
+
+                        sfr *= (0.5 * mgas_int[j, 0]) / (0.03 * dmgas_outflows)
+
+                        if j == 0:
+
+                            star_formation_rates[i] = sfr
+
+                            sfr_hist = CubicSpline(
+                                times[: i + 1],
+                                star_formation_rates[: i + 1],
+                            )
+
+                            interp = [gas_hist, star_hist, metal_hist, dust_hist, sfr_hist]
+
+                        else:
+
+                            sfr_hist = CubicSpline(
+                                append(times[: i + 1], t + step),
+                                append(star_formation_rates[: i + 1], sfr),
+                            )
+
+                            interp = [gas_hist, star_hist,
+                                      metal_hist, dust_hist, sfr_hist]
 
                 dmgas_ejecta, dmmetal_ejecta, dmdust_ejecta = ejecta_model(
                     model_params, sfr, imf, t + step, redshift, *y, *interp, cache
