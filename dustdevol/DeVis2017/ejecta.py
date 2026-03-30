@@ -38,6 +38,7 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
           lifetime.
     """
 
+    """
     masses_half = stellar_lifetimes[:-1, 0] / \
         fp(2) + stellar_lifetimes[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
@@ -47,6 +48,19 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
         return stellar_lifetimes[eff_indices, 2]
     else:
         return stellar_lifetimes[eff_indices, 1]
+    """
+    lifetimes = stellar_lifetimes(
+        (
+            clip(
+                metallicity,
+                fp(0.001),
+                fp(0.04),
+            ),
+            masses,
+        )
+    )
+
+    return lifetimes
 
 
 def remnant_mass(m):
@@ -102,7 +116,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     masses_half = yield_table[:-1, 0] / fp(2) + yield_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(yield_table[:, 0]) - 1)
-    return yield_table[eff_indices, i * stepsize + 1: (i + 1) * stepsize + 1]
+    return yield_table[eff_indices, i * stepsize + 1 : (i + 1) * stepsize + 1]
 
 
 def fresh_dust(
@@ -196,10 +210,14 @@ def stellar_ejecta(
 
     # store all model params for easier passing to subroutines
     dust_yield_table = model_params["dust_yields"]
-    metal_yield_table = model_params["metal_yields"]
-    metallicity_cutoffs = model_params["yield_table_z_cutoffs"]
+    fresh_metal_yields = model_params["metal_yields"]
+    sn_Ia_dust_yields = model_params["type_Ia_dust_yields"]
+    sn_Ia_metal_yields = model_params["type_Ia_metal_yields"]
     sn_reduction = model_params["sn_dust_reduction"]
     stellar_lifetimes = model_params["stellar_lifetimes"]
+    sn_Ia_lifetimes = model_params["type_Ia_delays"]
+    sn_Ia_prob = model_params["type_Ia_probability"]
+    sn_reduction = model_params["sn_dust_reduction"]
 
     # grab everything precomputable, and precompute it if not
     # specifically, the masses we sample, and the imfs, ejecta (m - rem)
@@ -209,11 +227,11 @@ def stellar_ejecta(
         ejecta = model_params["ejecta_vals"]
         imf_vals = model_params["imf_values"]
         d_masses = model_params["d_masses"]
+        stars_per_gen = cache["stars_per_gen"]
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(
-            log10(0.8), log10(120), 513, dtype=fp)
+        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -231,6 +249,14 @@ def stellar_ejecta(
         model_params["ejecta_vals"] = masses - remnants
         ejecta = model_params["ejecta_vals"]
 
+        # calculate total number of stars per solar mass of formed stars
+        # important for calculating type Ia rates
+        tot_masses = logspace(log10(0.1), log10(120), 513, dtype=fp)
+        tot_d_masses = diff(tot_masses)
+        tot_masses = tot_masses[:-1] + (tot_d_masses / fp(2))
+        cache["stars_per_gen"] = (imf(tot_masses) * tot_d_masses).sum()
+        stars_per_gen = cache["stars_per_gen"]
+
     # determine if high or low metallicity lifetimes are to be used
     if (mmetal[0] / mgas[0]) <= fp(0.008):
         metallicity = "low"
@@ -238,7 +264,7 @@ def stellar_ejecta(
     else:
         metallicity = "high"
 
-    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
+    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, (mmetal / mgas[0])[0])
 
     d_masses = where(t > lifetimes, d_masses, fp(0))
 
@@ -249,8 +275,10 @@ def stellar_ejecta(
     # calculate all our ejecta
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
-    fresh_metal_ejecta = fresh_metals(
-        metal_yield_table, metallicity_cutoffs, masses, mmetal / mgas[0]
+    fresh_metal_ejecta = fresh_metal_yields(
+        (metal_hist(t - lifetimes) /
+         gas_hist(t - lifetimes))[:, 0],
+        masses,
     )
     old_metal_ejecta = ejecta[:, None] * z_at_birth
     ejected_metal = (
@@ -266,8 +294,32 @@ def stellar_ejecta(
         sn_reduction,
         masses,
     )
-    ejected_dust = (fresh_dust_ejecta * sfr_vals *
-                    imf_vals * d_masses).sum(axis=0)
+    ejected_dust = (fresh_dust_ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
+    # calculate type Ia contribution
+    sn_Ia_rate = (
+        stars_per_gen
+        * sn_Ia_prob
+        * sfr_vals[masses <= 8]
+        * sn_Ia_lifetimes(lifetimes[masses <= 8])
+        * where(
+            t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0)
+        )
+    )
+    cache["Ia_rate"] = sn_Ia_rate.sum()
+
+    sn_Ia_fresh_metal = sn_Ia_metal_yields(
+        (metal_hist(t - lifetimes) /
+         gas_hist(t - lifetimes))[:, 0][masses <= 8],
+    )
+    ejected_metal += (sn_Ia_fresh_metal * sn_Ia_rate[:, None]).sum(axis=0)
+
+    sn_Ia_fresh_dust = fresh_dust(
+        sn_Ia_dust_yields,
+        (sn_Ia_fresh_metal + old_metal_ejecta[masses <= 8])[:, 0],
+        sn_reduction,
+        masses[masses <= 8],
+    )
+    ejected_dust += (sn_Ia_fresh_dust * sn_Ia_rate).sum(axis=0)
 
     return ejected_gas, ejected_metal, ejected_dust
 
@@ -374,10 +426,8 @@ def GK_ejecta(
         sfr_vals = sfr_hist(t - lifetimes)
 
         # calculate all our ejecta
-        ejected_gas_k = (ejecta * sfr_vals * imf_vals *
-                         kronrod_weights).sum(axis=0)
-        ejected_gas_g = (ejecta * sfr_vals * imf_vals *
-                         gauss_weights).sum(axis=0)
+        ejected_gas_k = (ejecta * sfr_vals * imf_vals * kronrod_weights).sum(axis=0)
+        ejected_gas_g = (ejecta * sfr_vals * imf_vals * gauss_weights).sum(axis=0)
 
         fresh_metal_ejecta = fresh_metals(
             metal_yield_table, metallicity_cutoffs, masses, mmetal / mgas[0]
@@ -437,8 +487,7 @@ def GK_ejecta(
             cache["ejecta_subdivisions"] *= 2
             ints = cache["ejecta_subdivisions"]
 
-            mesh = fp_array([0.8 + (i * 119.2 / ints)
-                            for i in range(ints + 1)])
+            mesh = fp_array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
 
             cache["ejecta_masses"] = []
             cache["gauss_weights"] = []
@@ -446,8 +495,7 @@ def GK_ejecta(
 
             for i in range(0, ints):
                 cache["ejecta_masses"].extend(
-                    ((sample_points_pre + 1) / 2) *
-                    (mesh[i + 1] - mesh[i]) + mesh[i]
+                    ((sample_points_pre + 1) / 2) * (mesh[i + 1] - mesh[i]) + mesh[i]
                 )
                 cache["gauss_weights"].extend(
                     gauss_weights_pre * (mesh[i + 1] - mesh[i]) / 2

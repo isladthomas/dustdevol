@@ -140,7 +140,7 @@ def dust_destruction(
     sn_rate = supernova_rate(
         imf, sfr_hist, t, model_params["stellar_lifetimes"], mmetal[0] /
         mgas[0], cache
-    )
+    ) + cache["Ia_rate"]
 
     t_des = destruction_timescale(
         model_params["sn_destruction"], mgas, sn_rate)

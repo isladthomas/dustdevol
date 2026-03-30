@@ -14,7 +14,7 @@ from numpy import (
 )
 from scipy.special import erf
 from scipy.interpolate import RegularGridInterpolator
-from scipy.optimize.elementwise import find_root
+from scipy.optimize.elementwise import find_root, bracket_root
 from dustdevol.generic import fp_zeros, z_at_t, fp, fp_array, fp_empty
 
 
@@ -130,21 +130,22 @@ def Nelson_outflow(
           Gas, metal, and dust lost (positive) to outflows
     """
 
-    eta = mass_loading(fp_array([redshift]), mstar)
-    gas_outflow = (sfr * 10**eta)[0]
+    try:
+        eta = mass_loading(fp_array([redshift]), mstar)
+        gas_outflow = (sfr * 10**eta)[0]
+    except:
+        breakpoint()
 
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
     try:
-        metal_outflow = (mmetal / mgas[0]) * \
-            gas_outflow * model_params["outflow_metal"]
+        metal_outflow = (mmetal / mgas[0]) * gas_outflow * model_params["outflow_metal"]
     except KeyError:
         model_params["outflow_metal"] = fp_zeros(len(mmetal))
         metal_outflow = fp_zeros(len(mmetal))
 
     try:
-        dust_outflow = (mdust / mgas[0]) * \
-            gas_outflow * model_params["outflow_dust"]
+        dust_outflow = (mdust / mgas[0]) * gas_outflow * model_params["outflow_dust"]
     except KeyError:
         model_params["outflow_dust"] = fp_zeros(len(mdust))
         dust_outflow = fp_zeros(len(mdust))
@@ -200,7 +201,8 @@ def BEDE_recycling(
         exp(
             -model_params["IGM_loss"]
             * model_params["recycling_scaling"]
-            * ejection_times * (1 + (std / 2))
+            * ejection_times
+            * (1 + (std / 2))
         ),
         std_fac * norm_const,
     )
@@ -240,12 +242,18 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
     except KeyError:
         cache["IGM_lifetimes"] = fp_array(
             (
-                (IGM_lifetimes_v0(
-                    fp_array([redshift] * n_samp), fp_zeros(n_samp)) * scaling),
-                (IGM_lifetimes_v150(
-                    fp_array([redshift] * n_samp), fp_zeros(n_samp)) * scaling),
-                (IGM_lifetimes_v300(
-                    fp_array([redshift] * n_samp), fp_zeros(n_samp)) * scaling),
+                (
+                    IGM_lifetimes_v0(fp_array([redshift] * n_samp), fp_zeros(n_samp))
+                    * scaling
+                ),
+                (
+                    IGM_lifetimes_v150(fp_array([redshift] * n_samp), fp_zeros(n_samp))
+                    * scaling
+                ),
+                (
+                    IGM_lifetimes_v300(fp_array([redshift] * n_samp), fp_zeros(n_samp))
+                    * scaling
+                ),
             )
         )
         tau0 = cache["IGM_lifetimes"]
@@ -280,8 +288,20 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
             * scaling
             - tau0
         )
-    ) > fp(2e-3)
+    ) > fp(1e-3)
     if retry[0].any():
+        bracket = bracket_root(
+            lambda tau, dev: IGM_lifetimes_v0(
+                z_at_t(t - (tau * (1 + (dev / 2)))),
+                star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
+            )
+            * scaling
+            - tau,
+            xl0=tau0[0][retry[0]] / 1.01,
+            xr0=tau0[0][retry[0]] * 1.01,
+            xmin=0,
+            args=(std[retry[0]],),
+        ).bracket
         tau0[0][retry[0]] = find_root(
             lambda tau, dev: IGM_lifetimes_v0(
                 z_at_t(t - (tau * (1 + (dev / 2)))),
@@ -289,11 +309,23 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
             )
             * scaling
             - tau,
-            (tau0[0][retry[0]] / 3, tau0[0][retry[0]] * 3),
+            bracket,
             args=(std[retry[0]],),
-            tolerances={"xatol": 2e-3},
+            tolerances={"xatol": 1e-3},
         ).x
     if retry[1].any():
+        bracket = bracket_root(
+            lambda tau, dev: IGM_lifetimes_v150(
+                z_at_t(t - (tau * (1 + (dev / 2)))),
+                star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
+            )
+            * scaling
+            - tau,
+            xl0=tau0[1][retry[1]] / 1.01,
+            xr0=tau0[1][retry[1]] * 1.01,
+            xmin=0,
+            args=(std[retry[1]],),
+        ).bracket
         tau0[1][retry[1]] = find_root(
             lambda tau, dev: IGM_lifetimes_v150(
                 z_at_t(t - (tau * (1 + (dev / 2)))),
@@ -301,11 +333,23 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
             )
             * scaling
             - tau,
-            (tau0[1][retry[1]] / 3, tau0[1][retry[1]] * 3),
+            bracket,
             args=(std[retry[1]],),
-            tolerances={"xatol": 2e-3},
+            tolerances={"xatol": 1e-3},
         ).x
     if retry[2].any():
+        bracket = bracket_root(
+            lambda tau, dev: IGM_lifetimes_v300(
+                z_at_t(t - (tau * (1 + (dev / 2)))),
+                star_hist(t - (tau * (1 + (dev / 2))))[:, 0],
+            )
+            * scaling
+            - tau,
+            xl0=tau0[2][retry[2]] / 1.01,
+            xr0=tau0[2][retry[2]] * 1.01,
+            xmin=0,
+            args=(std[retry[2]],),
+        ).bracket
         tau0[2][retry[2]] = find_root(
             lambda tau, dev: IGM_lifetimes_v300(
                 z_at_t(t - (tau * (1 + (dev / 2)))),
@@ -313,9 +357,9 @@ def find_recycle_times(t, redshift, star_hist, scaling, cache):
             )
             * scaling
             - tau,
-            (tau0[2][retry[2]] / 3, tau0[2][retry[2]] * 3),
+            bracket,
             args=(std[retry[2]],),
-            tolerances={"xatol": 2e-3},
+            tolerances={"xatol": 1e-3},
         ).x
 
     cache["IGM_lifetimes"] = tau0
@@ -471,9 +515,8 @@ Nelson_interp_lin_extrap = RegularGridInterpolator(
 def mass_loading_recyc(redshift, mstar):
     z = clip(redshift, 0, 4.0)
     m = clip(log10(mstar), 7.5, 11.5)
-    return (
-        Nelson_interp_lin_extrap(column_stack((z.flatten(), m.flatten())))
-        .reshape(3, n_samp, 3)
+    return Nelson_interp_lin_extrap(column_stack((z.flatten(), m.flatten()))).reshape(
+        3, n_samp, 3
     )
 
 

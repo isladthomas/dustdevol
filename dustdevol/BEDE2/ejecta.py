@@ -7,7 +7,7 @@ from numpy import (
     searchsorted,
     clip,
 )
-from scipy.optimize.elementwise import find_root
+from scipy.optimize.elementwise import find_root, bracket_root
 
 
 def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache):
@@ -63,8 +63,25 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
             )
             - tau0
         )
-    ) > fp(2e-3)
+    ) > fp(1e-3)
     if any(retry):
+        bracket = bracket_root(
+            lambda tau, mass: stellar_lifetimes(
+                (
+                    clip(
+                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                        fp(0.001),
+                        fp(0.04),
+                    ),
+                    mass,
+                )
+            )
+            - tau,
+            xl0=tau0[retry] / 1.1,
+            xr0=tau0[retry] * 1.1,
+            xmin=0,
+            args=(masses[retry],),
+        ).bracket
         tau0[retry] = find_root(
             lambda tau, mass: stellar_lifetimes(
                 (
@@ -77,9 +94,9 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
                 )
             )
             - tau,
-            [tau0[retry] / 1.5, tau0[retry] * 1.5],
+            bracket,
             args=(masses[retry],),
-            tolerances={"xatol": fp(2e-3)},
+            tolerances={"xatol": fp(1e-3)},
         ).x
 
     cache["ejecta_lifetimes"] = tau0
@@ -140,7 +157,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     masses_half = yield_table[:-1, 0] / fp(2) + yield_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(yield_table[:, 0]) - 1)
-    return yield_table[eff_indices, i * stepsize + 1 : (i + 1) * stepsize + 1]
+    return yield_table[eff_indices, i * stepsize + 1: (i + 1) * stepsize + 1]
 
 
 def fresh_dust(
@@ -234,11 +251,9 @@ def stellar_ejecta(
 
     # store all model params for easier passing to subroutines
     dust_yield_table = model_params["dust_yields"]
-    metal_yield_table = model_params["metal_yields"]
-    metallicity_cutoffs = model_params["yield_table_z_cutoffs"]
+    fresh_metal_yields = model_params["metal_yields"]
     sn_Ia_dust_yields = model_params["type_Ia_dust_yields"]
     sn_Ia_metal_yields = model_params["type_Ia_metal_yields"]
-    sn_Ia_cutoffs = model_params["type_Ia_yield_table_z_cutoffs"]
     sn_reduction = model_params["sn_dust_reduction"]
     stellar_lifetimes = model_params["stellar_lifetimes"]
     sn_Ia_lifetimes = model_params["type_Ia_delays"]
@@ -256,7 +271,8 @@ def stellar_ejecta(
 
     except KeyError:
 
-        cache["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
+        cache["ejecta_masses"] = logspace(
+            log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = cache["ejecta_masses"]
@@ -268,9 +284,7 @@ def stellar_ejecta(
         masses = cache["ejecta_masses"]
 
         # calcualte imf and ejecta at midpoints
-        cache["imf_values"] = imf(masses) * where(
-            masses <= 8, 1 - sn_Ia_prob, 1
-        )  # don't double_count Ia's
+        cache["imf_values"] = imf(masses)
         imf_vals = cache["imf_values"]
         remnants = remnant_mass(masses)
         cache["ejecta_vals"] = masses - remnants
@@ -298,8 +312,10 @@ def stellar_ejecta(
     # calculate all our ejecta
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
-    fresh_metal_ejecta = fresh_metals(
-        metal_yield_table, metallicity_cutoffs, masses, mmetal / mgas[0]
+    fresh_metal_ejecta = fresh_metal_yields(
+        (metal_hist(t - lifetimes) /
+         gas_hist(t - lifetimes))[:, 0],
+        masses,
     )
     old_metal_ejecta = ejecta[:, None] * z_at_birth
     ejected_metal = (
@@ -315,30 +331,32 @@ def stellar_ejecta(
         sn_reduction,
         masses,
     )
-    ejected_dust = (fresh_dust_ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
+    ejected_dust = (fresh_dust_ejecta * sfr_vals *
+                    imf_vals * d_masses).sum(axis=0)
     # calculate type Ia contribution
     sn_Ia_rate = (
         stars_per_gen
         * sn_Ia_prob
         * sfr_vals[masses <= 8]
         * sn_Ia_lifetimes(lifetimes[masses <= 8])
-        * where(
-            t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0)
-        )
+        * where(t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0))
     )
     cache["Ia_rate"] = sn_Ia_rate.sum()
-    ejected_gas += (ejecta[masses <= 8] * sn_Ia_rate).sum(axis=0)
 
-    sn_Ia_fresh_metal = fresh_metals(
-        sn_Ia_metal_yields, sn_Ia_cutoffs, masses[masses <= 8], mmetal / mgas[0]
+    sn_Ia_fresh_metal = sn_Ia_metal_yields(
+        (metal_hist(t - lifetimes) /
+         gas_hist(t - lifetimes))[:, 0][masses <= 8],
     )
-    ejected_metal += (
-        (sn_Ia_fresh_metal + old_metal_ejecta[masses <= 8]) * sn_Ia_rate[:, None]
-    ).sum(axis=0)
+    ejected_metal += (sn_Ia_fresh_metal * sn_Ia_rate[:, None]).sum(axis=0)
+
+    ejected_gas += (
+        sn_Ia_fresh_metal *
+        sn_Ia_rate[:, None]
+    ).sum(axis=0)[0]
 
     sn_Ia_fresh_dust = fresh_dust(
         sn_Ia_dust_yields,
-        (sn_Ia_fresh_metal + old_metal_ejecta[masses <= 8])[:, 0],
+        sn_Ia_fresh_metal[:, 0],
         sn_reduction,
         masses[masses <= 8],
     )

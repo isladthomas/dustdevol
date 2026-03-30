@@ -27,6 +27,7 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
           lifetime.
     """
 
+    """
     masses_half = stellar_lifetimes[:-1, 0] / \
         fp(2) + stellar_lifetimes[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
@@ -36,6 +37,19 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
         return stellar_lifetimes[eff_indices, 2]
     else:
         return stellar_lifetimes[eff_indices, 1]
+    """
+    lifetimes = stellar_lifetimes(
+        (
+            clip(
+                metallicity,
+                fp(0.001),
+                fp(0.04),
+            ),
+            masses,
+        )
+    )
+
+    return lifetimes
 
 
 def supernova_rate(imf, sfr_hist, t, stellar_lifetimes, metallicity_float, cache):
@@ -86,7 +100,7 @@ def supernova_rate(imf, sfr_hist, t, stellar_lifetimes, metallicity_float, cache
     else:
         metallicity = "high"
 
-    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity)
+    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, metallicity_float)
 
     d_masses = where(t > lifetimes, d_masses, fp(0))
 

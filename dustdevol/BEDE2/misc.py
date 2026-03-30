@@ -1,6 +1,6 @@
 from numpy import where, logspace, log10, diff, clip, exp, array, sort, maximum
 from dustdevol.generic import fp
-from scipy.optimize.elementwise import find_root
+from scipy.optimize.elementwise import find_root, bracket_root
 from scipy.stats import poisson, uniform, loguniform
 
 
@@ -202,8 +202,25 @@ def life_from_mass_vec(
             )
             - tau0
         )
-    ) > fp(2e-3)
+    ) > fp(1e-3)
     if any(retry):
+        bracket = bracket_root(
+            lambda tau, mass: stellar_lifetimes(
+                (
+                    clip(
+                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                        fp(0.001),
+                        fp(0.04),
+                    ),
+                    mass,
+                )
+            )
+            - tau,
+            xl0=tau0[retry] / 1.1,
+            xr0=tau0[retry] * 1.1,
+            xmin=0,
+            args=(masses[retry],),
+        ).bracket
         tau0[retry] = find_root(
             lambda tau, mass: stellar_lifetimes(
                 (
@@ -216,9 +233,9 @@ def life_from_mass_vec(
                 )
             )
             - tau,
-            [tau0[retry] / 1.5, tau0[retry] * 1.5],
+            bracket,
             args=(masses[retry],),
-            tolerances={"xatol": fp(2e-3)},
+            tolerances={"xatol": fp(1e-3)},
         ).x
 
     cache["sn_lifetimes"] = tau0
