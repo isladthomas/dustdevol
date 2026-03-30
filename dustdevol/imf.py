@@ -44,7 +44,7 @@ def generic_chab(m, power):
     return imf
 
 
-def chab(m):
+def chab(m):  # k = 1.47730718873342
     """Disk IMF for single objects as defined by Chabrier 2003,
     normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
 
@@ -62,7 +62,7 @@ def chab(m):
     return generic_chab(m, 1.3)
 
 
-def top_chab(m):
+def top_chab(m):  # k = 0.69150615262189
     """Disk IMF for single objects as defined by Chabrier 2003,
     normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
     Modified to be slightly more top-heavy.
@@ -81,7 +81,7 @@ def top_chab(m):
     return generic_chab(m, 0.8)
 
 
-def topper_chab(m):
+def topper_chab(m):  # k = 0.3388691385116757
     """Disk IMF for single objects as defined by Chabrier 2003,
     normalized so ``m * chab(m)`` integrates to 1 over 0.1 to 120.
     Modified to be decently more top-heavy.
@@ -103,7 +103,7 @@ def topper_chab(m):
 salp_norm = fp(5.8615127118)
 
 
-def salp(m):
+def salp(m):  # k = 2.828956424049581
     """IMF for single objects as defined by Salpeter 1955,
     normalized so ``m*chab(m)`` integrates to 1 over 0.1 to 120.
 
@@ -118,7 +118,7 @@ def salp(m):
                ndarray corresponding to values of the imf at each of the
                given masses.
     """
-    imf = m ** -2.35
+    imf = m**-2.35
     imf = imf / salp_norm
     return imf
 
@@ -126,7 +126,7 @@ def salp(m):
 kroup_norm = fp(3.3376974089)
 
 
-def kroup(m):
+def kroup(m):  # k = 2.039436052588923
     """'Galactic Field' IMF defined by Kroupa & Weidner 2003
     normalized so ``m*chab(m)`` integrates to 1 over 0.1 to 120.
 
@@ -141,9 +141,7 @@ def kroup(m):
                ndarray corresponding to values of the imf at each of the
                given masses.
     """
-    imf = where(m <= 0.5,
-                2 * m ** -1.3,
-                m ** -2.3)
-    imf[m > 1] = (m ** -2.7)[m > 1]
+    imf = where(m <= 0.5, 2 * m**-1.3, m**-2.3)
+    imf[m > 1] = (m**-2.7)[m > 1]
     imf = imf / kroup_norm
     return imf

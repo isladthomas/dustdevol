@@ -13,7 +13,7 @@ logging.captureWarnings(True)
 logging.basicConfig(filename="Plot_Warnings.log", level=logging.WARNING)
 
 for name in model_names[:, 0, :, :].flatten():
-    suptitle = "Cubic vs NN Stellar Lifetime Comparison"
+    suptitle = "Cubic vs Linear Stellar Lifetime Comparison"
     title = (
         name["death_point"].capitalize()
         + " Burning, "
@@ -25,7 +25,7 @@ for name in model_names[:, 0, :, :].flatten():
     ylabel = "Percent Difference"
     plot_name = (
         name["death_point"]
-        + "_compnn_"
+        + "_complin_"
         + name["type_Ia"]
         + "_"
         + name["birth_death_calc"]
@@ -42,7 +42,7 @@ for name in model_names[:, 0, :, :].flatten():
     file2 = (
         "outputs/"
         + name["death_point"]
-        + "_nn_"
+        + "_lin_"
         + name["type_Ia"]
         + "_"
         + name["birth_death_calc"]

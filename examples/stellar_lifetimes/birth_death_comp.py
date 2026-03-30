@@ -12,41 +12,58 @@ times = linspace(0, 13.8, 1000)
 logging.captureWarnings(True)
 logging.basicConfig(filename="Plot_Warnings.log", level=logging.WARNING)
 
-for name in model_names[:, 0, :, :].flatten():
-    suptitle = "Cubic vs NN Stellar Lifetime Comparison"
+for name in model_names[:, :, :, :, :, 0].flatten():
+    suptitle = "At Birth vs At Death Stellar Lifetime Comparison"
     title = (
-        name["death_point"].capitalize()
+        name["Ia_interpolation"].capitalize()
+        + " Ia Interp, "
+        + name["yield_interpolation"].capitalize()
+        + " Yield Interp, "
+        + name["death_point"].capitalize()
         + " Burning, "
-        + name["birth_death_calc"].capitalize()
-        + " Lifetime Calc, "
+        + name["lifetime_interpolation"].capitalize()
+        + " Lifetime Interp, "
         + "SNIa "
         + name["type_Ia"].capitalize()
     )
     ylabel = "Percent Difference"
     plot_name = (
-        name["death_point"]
-        + "_compnn_"
-        + name["type_Ia"]
+        name["Ia_interpolation"]
         + "_"
-        + name["birth_death_calc"]
+        + name["yield_interpolation"]
+        + "_"
+        + name["death_point"]
+        + "_"
+        + name["lifetime_interpolation"]
+        + "_"
+        + name["type_Ia"]
+        + "_comp"
     )
     file1 = (
         "outputs/"
-        + name["death_point"]
-        + "_cube_"
-        + name["type_Ia"]
+        + name["Ia_interpolation"]
         + "_"
-        + name["birth_death_calc"]
-        + ".npz"
+        + name["yield_interpolation"]
+        + "_"
+        + name["death_point"]
+        + "_"
+        + name["lifetime_interpolation"]
+        + "_"
+        + name["type_Ia"]
+        + "_birth.npz"
     )
     file2 = (
         "outputs/"
-        + name["death_point"]
-        + "_nn_"
-        + name["type_Ia"]
+        + name["Ia_interpolation"]
         + "_"
-        + name["birth_death_calc"]
-        + ".npz"
+        + name["yield_interpolation"]
+        + "_"
+        + name["death_point"]
+        + "_"
+        + name["lifetime_interpolation"]
+        + "_"
+        + name["type_Ia"]
+        + "_death.npz"
     )
 
     # note: solid line means second model overpredicts, dashed means underpredicts

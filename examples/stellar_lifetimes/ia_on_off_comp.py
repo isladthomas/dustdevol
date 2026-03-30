@@ -12,44 +12,62 @@ times = linspace(0, 13.8, 1000)
 logging.captureWarnings(True)
 logging.basicConfig(filename="Plot_Warnings.log", level=logging.WARNING)
 
-for name in model_names[:, 0, :, :].flatten():
-    suptitle = "Cubic vs NN Stellar Lifetime Comparison"
+for name in model_names[:, :, 0, :].flatten():
+    suptitle = "SNIa On vs Off Comparison"
     title = (
-        name["death_point"].capitalize()
+        name["Ia_interpolation"].capitalize()
+        + " Ia Interp, "
+        + name["yield_interpolation"].capitalize()
+        + " Yield Interp, "
+        + name["death_point"].capitalize()
         + " Burning, "
+        + name["lifetime_interpolation"].capitalize()
+        + " Interpolation, "
         + name["birth_death_calc"].capitalize()
-        + " Lifetime Calc, "
-        + "SNIa "
-        + name["type_Ia"].capitalize()
+        + " Lifetime Calc"
     )
     ylabel = "Percent Difference"
     plot_name = (
-        name["death_point"]
-        + "_compnn_"
-        + name["type_Ia"]
+        name["Ia_interpolation"]
         + "_"
+        + name["yield_interpolation"]
+        + "_"
+        + name["death_point"]
+        + "_"
+        + name["lifetime_interpolation"]
+        + "_comp_"
         + name["birth_death_calc"]
     )
     file1 = (
         "outputs/"
-        + name["death_point"]
-        + "_cube_"
-        + name["type_Ia"]
+        + name["Ia_interpolation"]
         + "_"
+        + name["yield_interpolation"]
+        + "_"
+        + name["death_point"]
+        + "_"
+        + name["lifetime_interpolation"]
+        + "_on_"
         + name["birth_death_calc"]
         + ".npz"
     )
     file2 = (
         "outputs/"
-        + name["death_point"]
-        + "_nn_"
-        + name["type_Ia"]
+        + name["Ia_interpolation"]
         + "_"
+        + name["yield_interpolation"]
+        + "_"
+        + name["death_point"]
+        + "_"
+        + name["lifetime_interpolation"]
+        + "_off_"
         + name["birth_death_calc"]
         + ".npz"
     )
 
     # note: solid line means second model overpredicts, dashed means underpredicts
+    # The "reference" is carbon burning end point, cubic interp, type Ia on,
+    # and at birth lifetime calcs
     with load(file1, allow_pickle=True) as d1, load(file2, allow_pickle=True) as d2:
 
         gas_data = gaussian_filter1d(
