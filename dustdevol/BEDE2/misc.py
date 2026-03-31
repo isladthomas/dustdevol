@@ -147,9 +147,7 @@ def bursty_sfr_from_efficiency(
     return (sfr + burst_sfr).sum()
 
 
-def life_from_mass_vec(
-    masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
-):
+def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache):
     """
     Function which finds stellar lifetime by solving the equation
     tau_f(Z(t - tau), m) - tau = 0
@@ -191,14 +189,8 @@ def life_from_mass_vec(
     retry = abs(
         (
             stellar_lifetimes(
-                (
-                    clip(
-                        (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
-                        fp(0.001),
-                        fp(0.04),
-                    ),
-                    masses,
-                )
+                (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
+                masses,
             )
             - tau0
         )
@@ -206,14 +198,8 @@ def life_from_mass_vec(
     if any(retry):
         bracket = bracket_root(
             lambda tau, mass: stellar_lifetimes(
-                (
-                    clip(
-                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
-                        fp(0.001),
-                        fp(0.04),
-                    ),
-                    mass,
-                )
+                (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                mass,
             )
             - tau,
             xl0=tau0[retry] / 1.1,
@@ -223,14 +209,8 @@ def life_from_mass_vec(
         ).bracket
         tau0[retry] = find_root(
             lambda tau, mass: stellar_lifetimes(
-                (
-                    clip(
-                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
-                        fp(0.001),
-                        fp(0.04),
-                    ),
-                    mass,
-                )
+                (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                mass,
             )
             - tau,
             bracket,

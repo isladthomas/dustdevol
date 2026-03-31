@@ -50,14 +50,8 @@ def life_from_mass_vec(masses, stellar_lifetimes, metallicity):
         return stellar_lifetimes[eff_indices, 1]
     """
     lifetimes = stellar_lifetimes(
-        (
-            clip(
-                metallicity,
-                fp(0.001),
-                fp(0.04),
-            ),
-            masses,
-        )
+        metallicity,
+        masses,
     )
 
     return lifetimes
@@ -116,7 +110,7 @@ def fresh_metals(yield_table, metallicity_cutoffs, masses, metallicity):
     masses_half = yield_table[:-1, 0] / fp(2) + yield_table[1:, 0] / fp(2)
     eff_indices = searchsorted(masses_half, masses)
     eff_indices = clip(eff_indices, 0, len(yield_table[:, 0]) - 1)
-    return yield_table[eff_indices, i * stepsize + 1 : (i + 1) * stepsize + 1]
+    return yield_table[eff_indices, i * stepsize + 1: (i + 1) * stepsize + 1]
 
 
 def fresh_dust(
@@ -231,7 +225,8 @@ def stellar_ejecta(
 
     except KeyError:
 
-        model_params["ejecta_masses"] = logspace(log10(0.8), log10(120), 513, dtype=fp)
+        model_params["ejecta_masses"] = logspace(
+            log10(0.8), log10(120), 513, dtype=fp)
 
         # get mass windows
         masses = model_params["ejecta_masses"]
@@ -264,7 +259,8 @@ def stellar_ejecta(
     else:
         metallicity = "high"
 
-    lifetimes = life_from_mass_vec(masses, stellar_lifetimes, (mmetal / mgas[0])[0])
+    lifetimes = life_from_mass_vec(
+        masses, stellar_lifetimes, (mmetal / mgas[0])[0])
 
     d_masses = where(t > lifetimes, d_masses, fp(0))
 
@@ -276,8 +272,7 @@ def stellar_ejecta(
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
     fresh_metal_ejecta = fresh_metal_yields(
-        (metal_hist(t - lifetimes) /
-         gas_hist(t - lifetimes))[:, 0],
+        (metal_hist(t - lifetimes) / gas_hist(t - lifetimes))[:, 0],
         masses,
     )
     old_metal_ejecta = ejecta[:, None] * z_at_birth
@@ -294,16 +289,15 @@ def stellar_ejecta(
         sn_reduction,
         masses,
     )
-    ejected_dust = (fresh_dust_ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
+    ejected_dust = (fresh_dust_ejecta * sfr_vals *
+                    imf_vals * d_masses).sum(axis=0)
     # calculate type Ia contribution
     sn_Ia_rate = (
         stars_per_gen
         * sn_Ia_prob
         * sfr_vals[masses <= 8]
         * sn_Ia_lifetimes(lifetimes[masses <= 8])
-        * where(
-            t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0)
-        )
+        * where(t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0))
     )
     cache["Ia_rate"] = sn_Ia_rate.sum()
 
@@ -426,8 +420,10 @@ def GK_ejecta(
         sfr_vals = sfr_hist(t - lifetimes)
 
         # calculate all our ejecta
-        ejected_gas_k = (ejecta * sfr_vals * imf_vals * kronrod_weights).sum(axis=0)
-        ejected_gas_g = (ejecta * sfr_vals * imf_vals * gauss_weights).sum(axis=0)
+        ejected_gas_k = (ejecta * sfr_vals * imf_vals *
+                         kronrod_weights).sum(axis=0)
+        ejected_gas_g = (ejecta * sfr_vals * imf_vals *
+                         gauss_weights).sum(axis=0)
 
         fresh_metal_ejecta = fresh_metals(
             metal_yield_table, metallicity_cutoffs, masses, mmetal / mgas[0]
@@ -487,7 +483,8 @@ def GK_ejecta(
             cache["ejecta_subdivisions"] *= 2
             ints = cache["ejecta_subdivisions"]
 
-            mesh = fp_array([0.8 + (i * 119.2 / ints) for i in range(ints + 1)])
+            mesh = fp_array([0.8 + (i * 119.2 / ints)
+                            for i in range(ints + 1)])
 
             cache["ejecta_masses"] = []
             cache["gauss_weights"] = []
@@ -495,7 +492,8 @@ def GK_ejecta(
 
             for i in range(0, ints):
                 cache["ejecta_masses"].extend(
-                    ((sample_points_pre + 1) / 2) * (mesh[i + 1] - mesh[i]) + mesh[i]
+                    ((sample_points_pre + 1) / 2) *
+                    (mesh[i + 1] - mesh[i]) + mesh[i]
                 )
                 cache["gauss_weights"].extend(
                     gauss_weights_pre * (mesh[i + 1] - mesh[i]) / 2

@@ -52,14 +52,8 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     retry = abs(
         (
             stellar_lifetimes(
-                (
-                    clip(
-                        (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
-                        fp(0.001),
-                        fp(0.04),
-                    ),
-                    masses,
-                )
+                (metal_hist(t - tau0) / gas_hist(t - tau0))[:, 0],
+                masses,
             )
             - tau0
         )
@@ -67,14 +61,8 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     if any(retry):
         bracket = bracket_root(
             lambda tau, mass: stellar_lifetimes(
-                (
-                    clip(
-                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
-                        fp(0.001),
-                        fp(0.04),
-                    ),
-                    mass,
-                )
+                (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                mass,
             )
             - tau,
             xl0=tau0[retry] / 1.1,
@@ -84,14 +72,8 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
         ).bracket
         tau0[retry] = find_root(
             lambda tau, mass: stellar_lifetimes(
-                (
-                    clip(
-                        (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
-                        fp(0.001),
-                        fp(0.04),
-                    ),
-                    mass,
-                )
+                (metal_hist(t - tau) / gas_hist(t - tau))[:, 0],
+                mass,
             )
             - tau,
             bracket,
@@ -313,8 +295,7 @@ def stellar_ejecta(
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
     fresh_metal_ejecta = fresh_metal_yields(
-        (metal_hist(t - lifetimes) /
-         gas_hist(t - lifetimes))[:, 0],
+        (metal_hist(t - lifetimes) / gas_hist(t - lifetimes))[:, 0],
         masses,
     )
     old_metal_ejecta = ejecta[:, None] * z_at_birth
@@ -349,10 +330,7 @@ def stellar_ejecta(
     )
     ejected_metal += (sn_Ia_fresh_metal * sn_Ia_rate[:, None]).sum(axis=0)
 
-    ejected_gas += (
-        sn_Ia_fresh_metal *
-        sn_Ia_rate[:, None]
-    ).sum(axis=0)[0]
+    ejected_gas += (sn_Ia_fresh_metal * sn_Ia_rate[:, None]).sum(axis=0)[0]
 
     sn_Ia_fresh_dust = fresh_dust(
         sn_Ia_dust_yields,
