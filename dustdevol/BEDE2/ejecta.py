@@ -46,7 +46,7 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     try:
         tau0 = cache["ejecta_lifetimes"]
     except KeyError:
-        cache["ejecta_lifetimes"] = stellar_lifetimes((fp(0), masses))
+        cache["ejecta_lifetimes"] = stellar_lifetimes(fp(0), masses)
         tau0 = cache["ejecta_lifetimes"]
 
     retry = abs(
@@ -292,6 +292,166 @@ def stellar_ejecta(
     sfr_vals = sfr_hist(t - lifetimes)
 
     # calculate all our ejecta
+    ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
+
+    fresh_metal_ejecta = fresh_metal_yields(
+        (metal_hist(t - lifetimes) / gas_hist(t - lifetimes))[:, 0],
+        masses,
+    )
+    old_metal_ejecta = ejecta[:, None] * z_at_birth
+    ejected_metal = (
+        (fresh_metal_ejecta + old_metal_ejecta)
+        * sfr_vals[:, None]
+        * imf_vals[:, None]
+        * d_masses[:, None]
+    ).sum(axis=0)
+
+    fresh_dust_ejecta = fresh_dust(
+        dust_yield_table,
+        (fresh_metal_ejecta + old_metal_ejecta)[:, 0],
+        sn_reduction,
+        masses,
+    )
+    ejected_dust = (fresh_dust_ejecta * sfr_vals *
+                    imf_vals * d_masses).sum(axis=0)
+    # calculate type Ia contribution
+    sn_Ia_rate = (
+        stars_per_gen
+        * sn_Ia_prob
+        * sfr_vals[masses <= 8]
+        * sn_Ia_lifetimes(lifetimes[masses <= 8])
+        * where(t > lifetimes[masses <= 8], -diff(lifetimes)[masses[:-1] <= 8], fp(0))
+    )
+    cache["Ia_rate"] = sn_Ia_rate.sum()
+
+    sn_Ia_fresh_metal = sn_Ia_metal_yields(
+        (metal_hist(t - lifetimes) /
+         gas_hist(t - lifetimes))[:, 0][masses <= 8],
+    )
+    ejected_metal += (sn_Ia_fresh_metal * sn_Ia_rate[:, None]).sum(axis=0)
+
+    ejected_gas += (sn_Ia_fresh_metal * sn_Ia_rate[:, None]).sum(axis=0)[0]
+
+    sn_Ia_fresh_dust = fresh_dust(
+        sn_Ia_dust_yields,
+        sn_Ia_fresh_metal[:, 0],
+        sn_reduction,
+        masses[masses <= 8],
+    )
+    ejected_dust += (sn_Ia_fresh_dust * sn_Ia_rate).sum(axis=0)
+
+    return ejected_gas, ejected_metal, ejected_dust
+
+
+def yield_consistent_stellar_ejecta(
+    model_params,
+    sfr,
+    imf,
+    t,
+    redshift,
+    mgas,
+    mstar,
+    mmetal,
+    mdust,
+    gas_hist,
+    star_hist,
+    metal_hist,
+    dust_hist,
+    sfr_hist,
+    cache,
+):
+    """
+    Calculate the gas, metals, and dust emmitted from dying stars, given
+    a function for mass of stellar remnants as well as output tables for
+    metal and dust yields. In essence, convolves the past SFR with the IMF
+    and a yield function to find how much gas/metal/dust is beind shot out now
+
+    Parameters
+    ----------
+    model_params : dict
+        - \"dust_yields\": table where each row gives a mass in Msol, and the
+                           dust *created*, not recycled, when such a star dies
+        - \"metal_yields\": table where each row gives a mass in Msol, followed
+                            by several entries giving the metals created when
+                            such a star dies, ordered the same as init_metals,
+                            repeated for each metallicity level
+        - \"yield_table_z_cutoffs\": list giving the cutoff for each
+                                     metallicity level in the metal_yields table
+        - \"sn_dust_reduction\": factor which divides dust created in supernovae
+        - \"stellar_lifetimes\": table where each row gives, in order
+                                 the mass of a star in Msol, the lifetime
+                                 of such a star in Gyrs in a low metallicity
+                                 (Z < 0.008) environment, and the lifetime in
+                                 a high metallicity (Z >= 0.008) environment
+
+    Results
+    -------
+    out : (g,), (m,), (d,)
+          gas, metals, and dust ejected from dying stars in Msol/Gyr
+    """
+
+    # store all model params for easier passing to subroutines
+    gas_yields = model_params["gas_yields"]
+    dust_yield_table = model_params["dust_yields"]
+    fresh_metal_yields = model_params["metal_yields"]
+    sn_Ia_dust_yields = model_params["type_Ia_dust_yields"]
+    sn_Ia_metal_yields = model_params["type_Ia_metal_yields"]
+    sn_reduction = model_params["sn_dust_reduction"]
+    stellar_lifetimes = model_params["stellar_lifetimes"]
+    sn_Ia_lifetimes = model_params["type_Ia_delays"]
+    sn_Ia_prob = model_params["type_Ia_probability"]
+
+    # grab everything precomputable, and precompute it if not
+    # specifically, the masses we sample, and the imfs, ejecta (m - rem)
+    # and the size of the window at each mass
+    try:
+        masses = cache["ejecta_masses"]
+        imf_vals = cache["imf_values"]
+        d_masses = cache["d_masses"]
+        stars_per_gen = cache["stars_per_gen"]
+
+    except KeyError:
+
+        cache["ejecta_masses"] = logspace(
+            log10(0.8), log10(120), 513, dtype=fp)
+
+        # get mass windows
+        masses = cache["ejecta_masses"]
+        cache["d_masses"] = diff(masses)
+        d_masses = cache["d_masses"]
+
+        # switch "masses" to the midpoints, instead of left edges
+        cache["ejecta_masses"] = masses[:-1] + (d_masses / fp(2))
+        masses = cache["ejecta_masses"]
+
+        # calcualte imf and ejecta at midpoints
+        cache["imf_values"] = imf(masses)
+        imf_vals = cache["imf_values"]
+
+        # calculate total number of stars per solar mass of formed stars
+        # important for calculating type Ia rates
+        tot_masses = logspace(log10(0.1), log10(120), 513, dtype=fp)
+        tot_d_masses = diff(tot_masses)
+        tot_masses = tot_masses[:-1] + (tot_d_masses / fp(2))
+        cache["stars_per_gen"] = (imf(tot_masses) * tot_d_masses).sum()
+        stars_per_gen = cache["stars_per_gen"]
+
+    # determine if high or low metallicity lifetimes are to be used
+    lifetimes = life_from_mass_vec(
+        masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
+    )
+
+    d_masses = where(t > lifetimes, d_masses, fp(0))
+
+    # create arrays for historical metallicity and sfr
+    z_at_birth = metal_hist(t - lifetimes) / gas_hist(t - lifetimes)
+    sfr_vals = sfr_hist(t - lifetimes)
+
+    # calculate all our ejecta
+    ejecta = gas_yields(
+        (metal_hist(t - lifetimes) / gas_hist(t - lifetimes))[:, 0],
+        masses,
+    )
     ejected_gas = (ejecta * sfr_vals * imf_vals * d_masses).sum(axis=0)
 
     fresh_metal_ejecta = fresh_metal_yields(

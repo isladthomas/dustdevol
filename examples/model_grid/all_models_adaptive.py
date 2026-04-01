@@ -70,6 +70,6 @@ for model in dict_configs(model_grid):
             + "_".join([x.__name__ for x in model.values()])
             + "_"
             + "_".join([str(x) for x in params.values()])
-            + ".npz",
+            + "_lifetime_updated.npz",
             **output
         )

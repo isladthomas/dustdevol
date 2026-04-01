@@ -183,7 +183,7 @@ def life_from_mass_vec(masses, metal_hist, gas_hist, stellar_lifetimes, t, cache
     try:
         tau0 = cache["sn_lifetimes"]
     except KeyError:
-        cache["sn_lifetimes"] = stellar_lifetimes((fp(0), masses))
+        cache["sn_lifetimes"] = stellar_lifetimes(fp(0), masses)
         tau0 = cache["sn_lifetimes"]
 
     retry = abs(
