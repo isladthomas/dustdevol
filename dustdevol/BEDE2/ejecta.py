@@ -366,9 +366,15 @@ def yield_consistent_stellar_ejecta(
     metal and dust yields. In essence, convolves the past SFR with the IMF
     and a yield function to find how much gas/metal/dust is beind shot out now
 
+    modified from the other stellar_ejecta function in that, instead of using
+    the remnant_mass function above, instead uses an additional "gas_yields"
+    model_param, intended to ensure that ejecta amounts are consistent with the
+    models we pull the metal yields from
+
     Parameters
     ----------
     model_params : dict
+        - \"gas_yields\": 
         - \"dust_yields\": table where each row gives a mass in Msol, and the
                            dust *created*, not recycled, when such a star dies
         - \"metal_yields\": table where each row gives a mass in Msol, followed

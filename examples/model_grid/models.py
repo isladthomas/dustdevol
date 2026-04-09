@@ -6,7 +6,7 @@ from dustdevol.BEDE2 import (
     Nelson_outflow,
     THEMIS_grain_growth,
     THEMIS_dust_destruction,
-    stellar_ejecta,
+    yield_consistent_stellar_ejecta,
     BEDE_recycling,
 )
 from dustdevol.generic import (
@@ -15,8 +15,10 @@ from dustdevol.generic import (
     fp_zeros,
     h_rotating_lifetimes,
     TF01,
-    KA18_high_lin,
-    LC18_R150_lin,
+    KA18_high_ejecta,
+    LC18_R150_ejecta,
+    KA18_high_metals,
+    LC18_R150_metals,
     AGB_SN_yields,
     LN2018_lin,
     S2020,
@@ -32,7 +34,8 @@ from dustdevol.dust_models import (
 )
 from copy import deepcopy
 
-yields_lin = AGB_SN_yields(KA18_high_lin, LC18_R150_lin, 3)
+gas_yields = AGB_SN_yields(KA18_high_ejecta, LC18_R150_ejecta, None)
+metal_yields = AGB_SN_yields(KA18_high_metals, LC18_R150_metals, 3)
 
 reference = {
     "time_start": fp(0),
@@ -44,7 +47,7 @@ reference = {
     "recycling_model": BEDE_recycling,
     "grain_growth_model": THEMIS_grain_growth,
     "destruction_model": THEMIS_dust_destruction,
-    "ejecta_model": stellar_ejecta,
+    "ejecta_model": yield_consistent_stellar_ejecta,
     "init_gas": fp_array([0.5e10]),
     "init_star": fp_array([0]),
     "init_metal": fp_array([0, 0, 0]),
@@ -70,7 +73,8 @@ reference = {
         "silicate_fraction": fp(0.1),
         "stellar_lifetimes": h_rotating_lifetimes,
         "dust_yields": TF01,
-        "metal_yields": yields_lin,
+        "metal_yields": metal_yields,
+        "gas_yields": gas_yields,
         "type_Ia_dust_yields": fp_zeros((2, 2)),
         "type_Ia_metal_yields": LN2018_lin,
         "type_Ia_delays": S2020,
