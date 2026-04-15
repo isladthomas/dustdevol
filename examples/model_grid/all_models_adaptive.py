@@ -65,11 +65,11 @@ for model in dict_configs(model_grid):
                     for t in results["times"]]
             )[:, None],
         }
-        savez_compressed(
-            "outputs/"
-            + "_".join([x.__name__ for x in model.values()])
-            + "_"
-            + "_".join([str(x) for x in params.values()])
-            + "_lifetime_updated.npz",
-            **output
-        )
+#        savez_compressed(
+#            "outputs/"
+#            + "_".join([x.__name__ for x in model.values()])
+#            + "_"
+#            + "_".join([str(x) for x in params.values()])
+#            + "_lifetime_updated.npz",
+#            **output
+#        )

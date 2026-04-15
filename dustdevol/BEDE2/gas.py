@@ -130,11 +130,8 @@ def Nelson_outflow(
           Gas, metal, and dust lost (positive) to outflows
     """
 
-    try:
-        eta = mass_loading(fp_array([redshift]), mstar)
-        gas_outflow = (sfr * 10**eta)[0]
-    except:
-        breakpoint()
+    eta = mass_loading(fp_array([redshift]), mstar)
+    gas_outflow = (sfr * 10**eta)[0]
 
     # if metal and dust frac not specified, set to zero
     # (so the error stops happening and we can go on quicker)
