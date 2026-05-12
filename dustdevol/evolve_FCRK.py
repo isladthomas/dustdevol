@@ -378,7 +378,8 @@ def evolve_2o_FC(
                     # the gas stuff.
                     # NOTE: We include a little "fudge factor" when checking
                     # size of outflows. This is due to floating point
-                    # shenanigans; the condition fails
+                    # shenanigans; the condition can fail if there's not enough prec
+                    # for an almost-1 rescaling factor to actually change the sfr
                     if dmgas_outflows <= (0.5 * mgas_int[j, 0] / 0.03) * 1.001:
                         break
                     else:
