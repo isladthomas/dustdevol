@@ -74,6 +74,7 @@ Archive*
 *.npy
 *.npz
 *.eps
+*.tar.gz
 
 # Python modules
 validate_dict.py
